@@ -1,0 +1,7 @@
+*~
+*.so
+*.pyc
+*.c
+*.log
+testOutputs
+corec
