@@ -24,7 +24,7 @@ except ImportError:
     pass
 import time as tm
 
-from componentsAlg.distanceFunctions import distanceA2AEuclideanSquared
+from .componentsAlg.distanceFunctions import distanceA2AEuclideanSquared
 
 
 #__all__ = ['execMaxpExact']
@@ -35,7 +35,7 @@ from componentsAlg.distanceFunctions import distanceA2AEuclideanSquared
 #def execMaxpExact(y, w, threshold=100.0):
 
 #EXPLICAR QUÉ ES EL maxP-REGIONS
-"""Max-p-regions model (Tabu) 
+"""Max-p-regions model (Tabu)
 
 The max-p-regions model, devised by [Duque_Anselin_Rey2010]_ ,
 clusters a set of geographic areas into the maximum number of homogeneous
@@ -45,10 +45,10 @@ the within-cluster sum of squares from each area to the attribute centroid
 of its cluster.    #CÓMO CORRERLO layer.cluster(...)
 layer.cluster('pRegionsExact',vars,p=2,<wType>,<std>,<dissolve>,<dataOperations>)
 
-:keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2','POP'])  
+:keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2','POP'])
 :type vars: list
 :keyword p: Number of spatially contiguous regions to be generated. Default value p = 2.
-:keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+:keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
 :type wType: string
 :keyword std: If = 1, then the variables will be standardized.
 :type std: binary
@@ -63,8 +63,8 @@ The dictionary structure must be as showed bellow.
 >>> X[variableName1] = [function1, function2,....]
 >>> X[variableName2] = [function1, function2,....]
 
-Where functions are strings which represents the name of the 
-functions to be used on the given variableName. Functions 
+Where functions are strings which represents the name of the
+functions to be used on the given variableName. Functions
 could be,'sum','mean','min','max','meanDesv','stdDesv','med',
 'mode','range','first','last','numberOfAreas. By deffault just
 ID variable is added to the dissolved map.
@@ -92,12 +92,12 @@ w = lay.Wrook
 # Layer info
 y = lay.Y
 
-print "Running max-p-regions model (Duque, Anselin and Rey, 2010)"
-print "Exact method"
-print "Number of areas: ", len(y) 
-print "threshold value: ", threshold
+print("Running max-p-regions model (Duque, Anselin and Rey, 2010)")
+print("Exact method")
+print("Number of areas: ", len(y))
+print("threshold value: ", threshold)
 
-    
+
 start = tm.time()
 
 # Number of areas
@@ -105,171 +105,168 @@ n = len(y)
 q = n-1
 
 # Area iterator
-numA = range(n)
+numA = list(range(n))
 # Order iterator
-numO = range(q)
+numO = list(range(q))
 
 d={}
-temp=range(n-1)
+temp=list(range(n-1))
 for i in temp:
-	list1=[]
-	for j in numA:
-		if i<j:
-			#list1.append(distanceA2AEuclideanSquared([y[i],y[j]])[0][0])
-			list1.append(distanceA2AEuclideanSquared([vars[i],vars[j]])[0][0])
-	d[i]=list1
-	
+    list1=[]
+    for j in numA:
+        if i<j:
+            #list1.append(distanceA2AEuclideanSquared([y[i],y[j]])[0][0])
+            list1.append(distanceA2AEuclideanSquared([vars[i],vars[j]])[0][0])
+    d[i]=list1
+
 # h: scaling factor
 temp = 0
 for i in numA:
-	for j in numA:
-		if i<j:
-			temp += d[i][j]
+    for j in numA:
+        if i<j:
+            temp += d[i][j]
 h = 1+ floor(log(temp))
 
 
 #-----------------------------------
-try: 
+try:
 # Create the new model
-	m=Model("maxpRegions")
+    m=Model("maxpRegions")
 
-	# Create variables
+    # Create variables
 
-	# t_ij
-	# 1 if areas i and j belongs to the same region
-	# 0 otherwise
-	t = []
-	for i in numA:
-		t_i = []
-		for j in numA:
-			t_i.append(m.addVar(vtype=GRB.BINARY,name="t_"+str([i,j])))
-		t.append(t_i)
+    # t_ij
+    # 1 if areas i and j belongs to the same region
+    # 0 otherwise
+    t = []
+    for i in numA:
+        t_i = []
+        for j in numA:
+            t_i.append(m.addVar(vtype=GRB.BINARY,name="t_"+str([i,j])))
+        t.append(t_i)
 
-	# x_ikc
-	# 1 if area i is assigned to region k in order c
-	# 0 otherwise
-	x = []
-	for i in numA:
-		x_i=[]
-		for k in numA:
-			x_ik=[]
-			for c in numO:
-				x_ik.append(m.addVar(vtype=GRB.BINARY,name="x_"+str([i,k,c])))
-			x_i.append(x_ik)
-		x.append(x_i)
-		  
-	# Integrate new variables
-	m.update()
+    # x_ikc
+    # 1 if area i is assigned to region k in order c
+    # 0 otherwise
+    x = []
+    for i in numA:
+        x_i=[]
+        for k in numA:
+            x_ik=[]
+            for c in numO:
+                x_ik.append(m.addVar(vtype=GRB.BINARY,name="x_"+str([i,k,c])))
+            x_i.append(x_ik)
+        x.append(x_i)
 
-	# Objective function
+    # Integrate new variables
+    m.update()
 
-	of=0
-	temp1 = 0
-	temp2 = 0
-	for i in numA:
-		# Number of regions
-		for k in numA:
-			temp1 += x[i][k][0]
-		# Total heterogeneity
-		for j in range(i+1,n):
-			temp2 += t[i][j]*d[i][j-i-1]
+    # Objective function
 
-	m.setObjective(temp1*(10**h)+temp2, GRB.MINIMIZE)
+    of=0
+    temp1 = 0
+    temp2 = 0
+    for i in numA:
+        # Number of regions
+        for k in numA:
+            temp1 += x[i][k][0]
+        # Total heterogeneity
+        for j in range(i+1,n):
+            temp2 += t[i][j]*d[i][j-i-1]
 
-	# Constraints 1
-	for k in numA:
-		temp = 0
-		for i in numA:
-			temp += x[i][k][0]
-		m.addConstr(temp<=1,"c1_"+str([k,0]))
-		
-		
-	# Constraints 2		
-	for i in numA:
-		temp = []
-		for k in numA:
-			for c in numO:
-				temp.append(x[i][k][c]) #+= x[i][k][c]
-		m.addConstr(quicksum(temp) == 1,"c2_"+str([i]))
-		
-	# Constraints 3		
-	for i in numA:
-		for k in numA:
-			for c in numO:
-				temp = []
-				for j in w[i]:
-					temp.append(x[j][k][c-1])
-				m.addConstr(x[i][k][c]-quicksum(temp) <= 0,"c3_"+str([i,k,c]))
-	
-	# Constraints 4
-	for i in numA:
-		for j in numA:
-			for k in numA:
-				temp = []
-				for c in numO:
-					temp.append(x[i][k][c]+x[j][k][c])
-				m.addConstr(quicksum(temp) - t[i][j] -1 <= 0,"c4_"+str([i,j,k]))				
+    m.setObjective(temp1*(10**h)+temp2, GRB.MINIMIZE)
 
-	# Constraints 5
-	for i in numA:
-		for j in numA:
-			m.addConstr(t[i][j]*(l[i]-l[j])>= 0,"c5_"+str([i,j]))				
+    # Constraints 1
+    for k in numA:
+        temp = 0
+        for i in numA:
+            temp += x[i][k][0]
+        m.addConstr(temp<=1,"c1_"+str([k,0]))
 
-	# Constraints 6
-	for i in numA:
-		for j in numA:
-			m.addConstr(t[i][j]*threshold>= t[i][j]*(l[i]-l[j]),"c6_"+str([i,j]))	
-							
-	m.update()
 
-	#Writes the .lp file format of the model
-	m.write("test.lp")
+    # Constraints 2
+    for i in numA:
+        temp = []
+        for k in numA:
+            for c in numO:
+                temp.append(x[i][k][c]) #+= x[i][k][c]
+        m.addConstr(quicksum(temp) == 1,"c2_"+str([i]))
 
-	#To reduce memory use
-	#import pdb; pdb.set_trace()
-	m.setParam('Nodefilestart',0.1)
-	#m.setParam('OutputFlag',False)
+    # Constraints 3
+    for i in numA:
+        for k in numA:
+            for c in numO:
+                temp = []
+                for j in w[i]:
+                    temp.append(x[j][k][c-1])
+                m.addConstr(x[i][k][c]-quicksum(temp) <= 0,"c3_"+str([i,k,c]))
 
-	m.optimize()
-   
-	time = tm.time()-start
+    # Constraints 4
+    for i in numA:
+        for j in numA:
+            for k in numA:
+                temp = []
+                for c in numO:
+                    temp.append(x[i][k][c]+x[j][k][c])
+                m.addConstr(quicksum(temp) - t[i][j] -1 <= 0,"c4_"+str([i,j,k]))
 
-	# sol = [0 for k in numA]
-	# num = list(numA)
-	# regID=0 #Number of region
-	# while num:
-		# area = num[0]
-		# sol[area]=regID
-		# f = num.remove(area)
-		# for j in numA:
-			# if t[area][j].x>=1-tol:#==1:
-				# sol[j] = regID
-				# if num.count(j)!=0:
-					# b = num.remove(j)
-		# regID += 1
-		
-	for v in m.getVars():
-		if v.x >0:
-			print v.varName, v.x
-	  
-	#print "p:", regID
-	#print 'FINAL SOLUTION:', sol
-	print 'FINAL OF:', m.objVal
-	print "running time", time
-	# output = { "objectiveFunction": m.objVal,
-		# "running time": time,
-		# "algorithm": "pRegionsExact",
-		# "regions" : len(sol),
-		# "r2a": sol,
-		# "distanceType" :  "EuclideanSquared",
-		# "distanceStat" : "None",
-		# "selectionType" : "None",
-		# "ObjectiveFunctionType" : "None"} 
-	# print "Done"
-	# return output
-			
+    # Constraints 5
+    for i in numA:
+        for j in numA:
+            m.addConstr(t[i][j]*(l[i]-l[j])>= 0,"c5_"+str([i,j]))
+
+    # Constraints 6
+    for i in numA:
+        for j in numA:
+            m.addConstr(t[i][j]*threshold>= t[i][j]*(l[i]-l[j]),"c6_"+str([i,j]))
+
+    m.update()
+
+    #Writes the .lp file format of the model
+    m.write("test.lp")
+
+    #To reduce memory use
+    #import pdb; pdb.set_trace()
+    m.setParam('Nodefilestart',0.1)
+    #m.setParam('OutputFlag',False)
+
+    m.optimize()
+
+    time = tm.time()-start
+
+    # sol = [0 for k in numA]
+    # num = list(numA)
+    # regID=0 #Number of region
+    # while num:
+        # area = num[0]
+        # sol[area]=regID
+        # f = num.remove(area)
+        # for j in numA:
+            # if t[area][j].x>=1-tol:#==1:
+                # sol[j] = regID
+                # if num.count(j)!=0:
+                    # b = num.remove(j)
+        # regID += 1
+
+    for v in m.getVars():
+        if v.x >0:
+            print(v.varName, v.x)
+
+    #print "p:", regID
+    #print 'FINAL SOLUTION:', sol
+    print('FINAL OF:', m.objVal)
+    print("running time", time)
+    # output = { "objectiveFunction": m.objVal,
+        # "running time": time,
+        # "algorithm": "pRegionsExact",
+        # "regions" : len(sol),
+        # "r2a": sol,
+        # "distanceType" :  "EuclideanSquared",
+        # "distanceStat" : "None",
+        # "selectionType" : "None",
+        # "ObjectiveFunctionType" : "None"}
+    # print "Done"
+    # return output
+
 except GurobiError:
-	print 'Error reported'
-
-
-
+    print('Error reported')

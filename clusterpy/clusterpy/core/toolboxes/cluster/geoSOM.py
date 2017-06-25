@@ -15,10 +15,10 @@ path = os.path.split(path)[0]
 path = os.path.split(path)[0]
 sys.path += [path]
 import copy
-import inputs
+import clusterpy.core.inputs
 import time as tm
-from componentsAlg import geoSomManager
-from componentsAlg import somManager
+from .componentsAlg import geoSomManager
+from .componentsAlg import somManager
 
 __all__ = ['geoSom']
 
@@ -30,34 +30,34 @@ def geoSom(iLayer,iVariables,
         alphaType = 'linear',
         initialDistribution = 'Uniform',
         fileName = None):
-    """Geo Self Organizing Map(geoSOM) 
+    """Geo Self Organizing Map(geoSOM)
 
     GeoSOM is an unsupervised neural network proposed by [Bacao_Lobo_Painho2004]_
     , which adjust his weights to represent, on a regular lattice, a data
     set distribution. The difference between the algorithm suggested by
     [Bacao_Lobo_Painho2004]_ and the suggested by [Kohonen1990] is that the first one
     uses the geographical location of the output network layer to organize
-    the values given in the input Layer. :: 
+    the values given in the input Layer. ::
 
         layer.cluster('geoSom',vars,nRows,nCols,<wType>,<iters>,<alphaType>,<initialDistribution>,<wType>,<fileName>)
 
-    :keyword vars: Area attribute(s) 
+    :keyword vars: Area attribute(s)
     :type vars: list
-    
-    :keyword nRows: Number of rows in the lattice 
+
+    :keyword nRows: Number of rows in the lattice
     :type nRows: list
 
     :keyword nCols: Number of columns in the lattice
     :type nCols: list
 
-    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
     :type wType: string
 
     :keyword iters: Number of iterations for the SOM algorithm. Default value iters = 1000.
     :type iters: integer
 
     :keyword alphaType: Name of the scalar-valued decreasing function which maps iterations onto (0,1) float values. This function is used to define how much modify the BMU neighborhood areas. In clusterPy we have to possible functions: 'linear' (linear decreasing function), or 'quadratic'(quadratic decreasing function). Default value alphaType = 'linear'.
-    :type alphaType: string 
+    :type alphaType: string
 
     :keyword initialDistribution: Data generator process to be used used to initialized the neural wights. Default value initialDistribution = 'uniform'.
     :type initialDistribution: string
@@ -65,8 +65,8 @@ def geoSom(iLayer,iVariables,
     :keyword fileName: Parameter used to export neural output layer topology as a shapefile. Default value fileName = None.
     :type fileName: string
 
-    IMPORTANT NOTE: 
-    
+    IMPORTANT NOTE:
+
     Since this algorithm does not guarantee spatial contiguity of the
     resulting regions, clusterPy does not provide the dissolve option. to
     obtain the solution vector you will need to export the layer with the
@@ -74,9 +74,9 @@ def geoSom(iLayer,iVariables,
     additional variable with the solution vector (i.e., ID of the region to
     which the area has been assigned).
     """
-    print "Geo-Som"
+    print("Geo-Som")
     start = tm.time()
-    print "---Generating geo SOM topology---" 
+    print("---Generating geo SOM topology---")
     bbox = iLayer.bbox
     oLayer = inputs.createGrid(nRows,nCols,
                                (bbox[0],bbox[1]),
@@ -102,8 +102,8 @@ def geoSom(iLayer,iVariables,
     time = tm.time() - start
     Sol = manager.compressSolution(solution)
     Of = 0
-    print "FINAL SOLUTION: ", Sol
-    print "FINAL O.F.: ", Of
+    print("FINAL SOLUTION: ", Sol)
+    print("FINAL O.F.: ", Of)
     output = { "objectiveFunction": Of,
     "runningTime": time,
     "algorithm": "geoSOM",
@@ -114,7 +114,7 @@ def geoSom(iLayer,iVariables,
     "selectionType": None,
     "ObjectiveFuncionType": None,
     "SOMOutputLayer": manager.outputLayer}
-    print "Done"
-    if fileName <> None:
+    print("Done")
+    if fileName != None:
         manager.outputLayer.exportArcData(fileName)
     return output

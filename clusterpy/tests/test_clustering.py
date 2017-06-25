@@ -117,7 +117,7 @@ class TestMaxPTabu(TestCase):
 
         for threshold in thresholds:
             instance.cluster('maxpTabu', ['CONSTANTS'], threshold=threshold)
-            region_size = cnt(instance.region2areas).values()
+            region_size = list(cnt(instance.region2areas).values())
             self.assertTrue(all(item >= threshold for item in region_size))
 
 class TestAZPalgorithms(TestCase):

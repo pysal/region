@@ -11,7 +11,7 @@ __email__ = "contacto@rise-group.org"
 
 import numpy
 import time as tm
-from componentsESDA import absDifference
+from .componentsESDA import absDifference
 
 __all__ = ['redistributionCoef']
 
@@ -19,20 +19,20 @@ def redistributionCoef(*args):
     """Redistribution Coefficient
     This function creates a dictionary with the redistribution
     coefficient of the variable list.
-    
+
     the redistribution coefficient cualify with a number between
     0 and 1 the simlitarity between two time periods of a variable.
 
-    I{Parameters shown below are modified to explain how to calculate the 
+    I{Parameters shown below are modified to explain how to calculate the
     redistribution coeficient for a list of variables two variables
     of a layer object.
     As example:}
-    
+
     @type algorithm: string
-    @keyword algorithm: "RDC" 
+    @keyword algorithm: "RDC"
 
     @type variables: names tuple
-    @keyword variables: Two variables names to use. 
+    @keyword variables: Two variables names to use.
 
     @rtype: tuple
     @return: (coefficients dictionary,coeficients list of lists)
@@ -57,14 +57,13 @@ def redistributionCoef(*args):
         rdcw[i][i] = 0
         while j < len(varList):
             v2 = varList[j]
-            var1 = [x[0] for x in layer.getVars(v1).values()]
-            var2 = [x[0] for x in layer.getVars(v2).values()]
+            var1 = [x[0] for x in list(layer.getVars(v1).values())]
+            var2 = [x[0] for x in list(layer.getVars(v2).values())]
             rdc[(v1, v2)] = absDifference(var1,var2)
             rdc[(v2, v1)] = rdc[(v1, v2)]
             rdcw[i][j] = rdc[(v1, v2)]
             rdcw[j][i] = rdc[(v1, v2)]
             j = j + 1
         i = i + 1
-    print "rdc has been succesfuly calculed"
+    print("rdc has been succesfuly calculed")
     return rdc, rdcw
-

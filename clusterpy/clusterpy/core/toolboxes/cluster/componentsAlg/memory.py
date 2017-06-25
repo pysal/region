@@ -71,4 +71,3 @@ class ExtendedMemory(BasicMemory):
         self.area2Region = deepcopy(rm.area2Region)
         self.region2Area = deepcopy(rm.region2Area)
         self.intraBorderingAreas = deepcopy(rm.intraBorderingAreas)
-

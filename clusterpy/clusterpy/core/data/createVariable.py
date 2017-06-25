@@ -18,7 +18,7 @@ def fieldOperation(function, Y, fieldnames):
     :param function: function defined by the user, written like a python operation
     :type function: string
     :rtype: list (Y dictionary with the results)
-    """  
+    """
     variables = []
     positions = []
     auxiliar1 = []
@@ -45,8 +45,8 @@ def fieldOperation(function, Y, fieldnames):
         for l in variables:
             newfunc = re.compile(l).sub(str(auxiliar1[variables.index(l)]), newfunc)
         try:
-            n = eval(newfunc)            
+            n = eval(newfunc)
         except ZeroDivisionError:
             raise ZeroDivisionError("Division by zero was detected")
-        results.append(n)                    
+        results.append(n)
     return results

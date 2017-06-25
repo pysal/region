@@ -20,7 +20,7 @@ def topoStatistics(W,nWrook,regular=False):
     for w in nWrook:
         nw += [len(W[w])]
         if nw[-1] != 0:
-            if areas_nngs.has_key(nw[-1]):
+            if nw[-1] in areas_nngs:
                 areas_nngs[nw[-1]].append(w)
             else:
                 areas_nngs[nw[-1]] = [w]
@@ -54,7 +54,7 @@ def topoStatistics(W,nWrook,regular=False):
             X2.append(n)
             Y.append(n*m[n])
             Y2.append((n**2)*m[n])
-    X = numpy.matrix(zip(X1,X2))
+    X = numpy.matrix(list(zip(X1,X2)))
     Y = numpy.matrix(Y)
     sparseness = n1/float(len(W)**2-len(W))
     if regular:
@@ -89,7 +89,7 @@ def stepFrontiers(firstArea,desiredEnd,unusedNeighbors,Wrook,Wqueen,deep):
             result = res or result
             if result:
                 break
-        return result, uN    
+        return result, uN
 
 def noFrontiersW(Wrook,Wqueen,areas):
     def nAvailableMovements(uN,area):
@@ -97,7 +97,7 @@ def noFrontiersW(Wrook,Wqueen,areas):
         if len(Wrook[area]) == 2:
             return 0
         return len(availableMovements)
-    
+
     nWrook = copy.deepcopy(Wrook)
     candidates = []
     for area in Wrook:
@@ -114,7 +114,7 @@ def noFrontiersW(Wrook,Wqueen,areas):
                 if initialArea in unusedNeighbors:
                     unusedNeighbors.remove(initialArea)
                 interior = interior or int
-            
+
             elif len(Wqueen[area]) == 1 and nAvailableMovements(unusedNeighbors,actArea) == 0:
                 try:
                     interior = Polygon(Polygon(areas[actArea][0]).exterior).contains(Polygon(areas[area][0]))

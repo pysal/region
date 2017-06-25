@@ -11,14 +11,14 @@ __email__ = "contacto@rise-group.org"
 
 from copy import deepcopy
 import numpy as np
-from objFunctions import makeObjDict, objectiveFunctionTypeDispatcher
-from selectionTypeFunctions import selectionTypeDispatcher
+from .objFunctions import makeObjDict, objectiveFunctionTypeDispatcher
+from .selectionTypeFunctions import selectionTypeDispatcher
 from warnings import warn
 from time import time
 
-from memory import ExtendedMemory as ExtMem
-from areacl import AreaCl
-from helperfunctions import sortedKeys
+from .memory import ExtendedMemory as ExtMem
+from .areacl import AreaCl
+from .helperfunctions import sortedKeys
 from os import getpid
 
 class RegionMaker:
@@ -96,7 +96,7 @@ class RegionMaker:
         self.selectionType = selectionType
         self.objectiveFunctionType = objectiveFunctionType
         self.n = len(self.areas)
-        self.unassignedAreas = self.areas.keys()
+        self.unassignedAreas = list(self.areas.keys())
         self.assignedAreas = []
         self.area2Region = {}
         self.region2Area = {}
@@ -150,7 +150,7 @@ class RegionMaker:
                     regions2create.setdefault(i, []).append(c)
                     c += 1
                 c = 0
-                regions2createKeys = regions2create.keys()
+                regions2createKeys = list(regions2create.keys())
                 for i in regions2createKeys:
                     self.unassignedAreas = regions2create[i][1:]
                     lenUnassAreas = len(self.unassignedAreas)
@@ -165,7 +165,7 @@ class RegionMaker:
         if self.numRegionsType == "EndogenousThreshold":
             self.constructionStage = "growing"
             try:
-                self.areas[self.areas.keys()[0]].thresholdVar
+                self.areas[list(self.areas.keys())[0]].thresholdVar
             except:
                 self.extractThresholdVar()
             self.regionalThreshold = threshold
@@ -214,7 +214,7 @@ class RegionMaker:
         if self.numRegionsType == "EndogenousRange":
             self.constructionStage = "growing"  #  there are two values for constructionStage: "growing" and "enclaves"
             try:
-                self.areas[self.areas.keys()[0]].thresholdVar
+                self.areas[list(self.areas.keys())[0]].thresholdVar
             except:
                 self.extractThresholdVar()
             self.regionalThreshold = threshold
@@ -275,12 +275,12 @@ class RegionMaker:
         n = len(y)
         distances = np.ones(n)
         total = sum(distances)
-        probabilities = map(lambda x: x / float(total), distances)
+        probabilities = [x / float(total) for x in distances]
         seeds = []
         localDistanceType = self.distanceType
         returnDistance2Area = AreaCl.returnDistance2Area
         np.random.seed(int(time() * getpid()) % 4294967295)
-        for k in xrange(self.pRegions):
+        for k in range(self.pRegions):
             random = np.random.uniform(0, 1)
             find = False
             acum = 0
@@ -316,7 +316,7 @@ class RegionMaker:
                         distancei = min(tempMap)
                         distances[area] = distancei
                     total = sum(distances)
-                    probabilities = map(lambda x: x / float(total), distances)
+                    probabilities = [x / float(total) for x in distances]
                 else:
                     cont += 1
                     acum = sup
@@ -329,7 +329,7 @@ class RegionMaker:
         to satisfy a threshold value (thresholdVar)
         """
         self.totalThresholdVar = 0.0
-        for areaId in self.areas.keys():
+        for areaId in list(self.areas.keys()):
             self.areas[areaId].thresholdVar = self.areas[areaId].data[-1]
             self.areas[areaId].data = self.areas[areaId].data[0: -1]
             self.totalThresholdVar += self.areas[areaId].thresholdVar
@@ -338,16 +338,16 @@ class RegionMaker:
         """
         Remove a region from candidates
         """
-        for i in self.candidateInfo.keys():
-          a, r = i
-          if r in self.feasibleRegions:
-            self.candidateInfo.pop(i)
+        for i in list(self.candidateInfo.keys()):
+            a, r = i
+            if r in self.feasibleRegions:
+                self.candidateInfo.pop(i)
 
     def returnRegions(self):
         """
         Return regions created
         """
-        areasId = self.area2Region.keys()
+        areasId = list(self.area2Region.keys())
         areasId = np.sort(areasId).tolist()
         return [self.area2Region[area] for area in areasId]
 
@@ -355,7 +355,7 @@ class RegionMaker:
         """
         Reset all variables
         """
-        self.unassignedAreas = self.areas.keys()
+        self.unassignedAreas = list(self.areas.keys())
         self.assignedAreas = []
         self.area2Region = {}
         self.region2Area = {}
@@ -370,7 +370,7 @@ class RegionMaker:
         Sets the initial seeds for clustering
         """
         if self.numRegionsType == "Exogenous" and len(seeds) <= self.pRegions:
-            idx = range(self.n)
+            idx = list(range(self.n))
             didx = list((set(idx) - set(seeds)) - self.am.noNeighs)
             np.random.shuffle(didx)
             self.seeds = seeds + didx[0:(self.pRegions - len(seeds))]
@@ -437,7 +437,7 @@ class RegionMaker:
         except:
             pass
         self.changedRegion = 'null'
-        self.newExternal = self.potentialRegions4Area.keys()
+        self.newExternal = list(self.potentialRegions4Area.keys())
 
     def assignAreasNoNeighs(self):
         """
@@ -490,7 +490,7 @@ class RegionMaker:
         """
         self.intraBorderingAreas = {}
         if self.numRegionsType == "Exogenous":
-            nr = range(self.pRegions)
+            nr = list(range(self.pRegions))
         else:
             nr = self.feasibleRegions
         for regionID in nr:
@@ -517,7 +517,7 @@ class RegionMaker:
         _fun_am_d2r = self.am.getDistance2Region
 
         lastRegion = 0
-        for areaID in self.potentialRegions4Area.keys():
+        for areaID in list(self.potentialRegions4Area.keys()):
             a = self.areas[areaID]
             regionIDs = list(self.potentialRegions4Area[areaID])
             for region in regionIDs:
@@ -566,7 +566,7 @@ class RegionMaker:
         if len(removeCandidate) > 0:
             toRemove = []
             for _id in removeCandidate:
-                for cand, reg in self.candidateInfo.keys():
+                for cand, reg in list(self.candidateInfo.keys()):
                     if cand == _id:
                         toRemove.append((cand, reg))
             for remov in toRemove:
@@ -582,7 +582,7 @@ class RegionMaker:
         candidates = [i <= xRangeMax for i in xList]
         indices = indexMultiple(candidates, 1)
         nCandidates = len(indices)
-        idx = range(nCandidates)
+        idx = list(range(nCandidates))
         np.random.shuffle(idx)
         random = idx[0]
         index4Grasp = indices[random]
@@ -614,7 +614,7 @@ class RegionMaker:
 
         if isinstance(_objFunType, "".__class__):
             if len(self.indexDataOF) == 0:
-                indexData = range(len(self.areas[0].data))
+                indexData = list(range(len(self.areas[0].data)))
             else:
                 indexData = self.indexDataOF
             _fun = None
@@ -629,7 +629,7 @@ class RegionMaker:
             i = 0
             for oFT in _objFunType:
                 if len(self.indexDataOF) == 0:
-                    indexData = range(len(self.areas[0].data))
+                    indexData = list(range(len(self.areas[0].data)))
                 else:
                     indexData = self.indexDataOF[i]
 
@@ -760,9 +760,9 @@ class RegionMaker:
 
     def calculateRegionValueThreshold(self):
         if self.numRegionsType == "Exogenous":
-            nr = range(self.pRegions)
+            nr = list(range(self.pRegions))
         else:
-            nr = range(len(self.region2Area.keys()))
+            nr = list(range(len(list(self.region2Area.keys()))))
         for regionID in nr:
             self.regionValue[regionID] = 0
             areas2Eval = self.region2Area[regionID]
@@ -777,7 +777,7 @@ class RegionMaker:
         region2AreaCopy = deepcopy(self.region2Area)
         area2RegionCopy = deepcopy(self.area2Region)
         self.neighSolutions = {}
-        for area in intraCopy.keys():
+        for area in list(intraCopy.keys()):
             regionIn = self.area2Region[area]
             regions4Move = list(self.intraBorderingAreas[area])
             if (len(self.region2Area[regionIn]) > 1):
@@ -804,7 +804,7 @@ class RegionMaker:
         area2RegionCp = deepcopy(self.area2Region)
         neighSolutions = {}
 
-        for area in intraCopy.keys():
+        for area in list(intraCopy.keys()):
             regionIn = self.area2Region[area]
             regions4Move = list(self.intraBorderingAreas[area])
             if (len(self.region2Area[regionIn]) > 1):
@@ -868,7 +868,7 @@ class RegionMaker:
         while flag:
             self.improvingCandidates()
             self.round = 1
-            if len(self.neighSolutions.keys()) == 0:
+            if len(list(self.neighSolutions.keys())) == 0:
                 flag = 0
             else:
                 sortedk = sortedKeys(self.neighSolutions)
@@ -876,14 +876,14 @@ class RegionMaker:
                     move = sortedk[np.random.randint(0, len(sortedk))]
                     area, region = move
                 else:
-                    values = self.neighSolutions.values()
+                    values = list(self.neighSolutions.values())
                     minVal = min(self.neighSolutions.values())
                     indicesMin = indexMultiple(values, minVal)
                     nInd = len(indicesMin)
-                    idx = range(nInd)
+                    idx = list(range(nInd))
                     np.random.shuffle(idx)
                     minIndex = indicesMin[idx[0]]
-                    area,region = self.neighSolutions.keys()[minIndex]
+                    area,region = list(self.neighSolutions.keys())[minIndex]
                 self.moveArea(area, region)
 
         self.regions = self.returnRegions()
@@ -1029,7 +1029,7 @@ class RegionMaker:
         """
         improve = 1
         while improve == 1:
-            regions = range(0, self.pRegions)
+            regions = list(range(0, self.pRegions))
             while len(regions) > 0:
 
                 # step 3
@@ -1106,7 +1106,7 @@ class RegionMaker:
 
         improve = 1
         while improve == 1:
-            regions = range(0, self.pRegions)
+            regions = list(range(0, self.pRegions))
             while len(regions) > 0:
 
                 #  step 3
@@ -1343,7 +1343,7 @@ class RegionMaker:
                         visitedSolutions = []
                         self.objDict = makeObjDict(self)
                         self.allCandidates()
-                        moveIndex = range(len(self.neighSolutions))
+                        moveIndex = list(range(len(self.neighSolutions)))
                         np.random.suffle(moveIndex)
                         for move in moveIndex[0:int(1 + 0.5 * rAvg)]:
                             area, region = move

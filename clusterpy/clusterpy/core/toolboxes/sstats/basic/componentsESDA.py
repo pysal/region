@@ -17,13 +17,13 @@ def absDifference(variable1, variable2):
     """abs difference coeficient
     This coefficient cualify with a number between 0 and 1 the
     similarity between two variables.
-    
-    @type variable1: string  
+
+    @type variable1: string
     @param variable1: First variabldae
 
     @type variable2: string
     @param variable2: Second variable
-    
+
     @rtype: float
     @return: Redistribution coefficient
     """

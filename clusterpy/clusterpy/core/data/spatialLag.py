@@ -20,7 +20,7 @@ def spatialLag(data,w):
     :param data: data dictionary to be lagged
     :type data: dictionary
     :rtype: dictionary (Y dictionary with the lag of vars)
-    """  
+    """
     data = [data[x] for x in data]
     data = numpy.matrix(data)
     data = data.transpose()
@@ -31,4 +31,3 @@ def spatialLag(data,w):
     for nd, d in enumerate(data):
         y[nd] = d.tolist()[0]
     return y
-

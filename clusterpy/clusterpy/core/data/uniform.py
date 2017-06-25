@@ -15,7 +15,7 @@ def generateUniform(w, n, min, max):
     """
     This function generates n simulated variables for a map according
     to a uniform distribution.
-    
+
     :param w: W similarity matrix
     :type w: dictionary
     :param n: number of variables to be simulated
@@ -40,10 +40,9 @@ def generateUniform(w, n, min, max):
     >>> china = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> china.generateData("Uniform", 'queen', 1, 1, 10, integer=1)
     """
-    N = len(w.keys())
+    N = len(list(w.keys()))
     y = {}
     for i in range(N):
         j = list(numpy.random.uniform(min, max, n))
         y[i] = [float(k) for k in j]
     return y
-

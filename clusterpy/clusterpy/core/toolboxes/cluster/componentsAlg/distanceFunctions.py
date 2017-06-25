@@ -35,7 +35,7 @@ def distanceA2AEuclideanSquared(x, std=[], w=[]):
     numrows = len(x)
     distance = [0]*(numrows-1)
 
-    for row in xrange(numrows - 1):
+    for row in range(numrows - 1):
         npsublist = np.subtract(x[row], x[row + 1])
         sublist = npsublist.tolist()
         distance[row] = [square_double(sublist)]
@@ -61,12 +61,12 @@ def getHammingDistance(X, Y):
 
         assigned = {}
 
-        for i in xrange(lenX):
+        for i in range(lenX):
             if X[i] not in assigned:
                 assigned[X[i]] = r
                 r += 1
 
-        for i in xrange(lenX):
+        for i in range(lenX):
             XP[i] = assigned[XP[i]]
 
         return XP

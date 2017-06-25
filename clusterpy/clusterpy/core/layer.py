@@ -8,77 +8,77 @@ __version__ = "1.0.0"
 __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 __all__ = ['Layer']
-                 
+
 
 import copy
-import cPickle
+import pickle
 import numpy
 import os
 import re
 import time
 import itertools
 
-from data import generateSAR
-from data import generateSMA
-from data import generateCAR
-from data import generateSpots
-from data import generatePositiveSpots
-from data import generateUniform
-from data import generateGBinomial
-from data import generateLBinomial
-from data import dissolveData
-from data import fieldOperation
-from data import spatialLag
+from .data import generateSAR
+from .data import generateSMA
+from .data import generateCAR
+from .data import generateSpots
+from .data import generatePositiveSpots
+from .data import generateUniform
+from .data import generateGBinomial
+from .data import generateLBinomial
+from .data import dissolveData
+from .data import fieldOperation
+from .data import spatialLag
 
-from geometry import dissolveLayer
-from geometry import transportLayer
-from geometry import expandLayer
-from geometry import getBbox
-from geometry import getGeometricAreas
-from geometry import getCentroids
+from .geometry import dissolveLayer
+from .geometry import transportLayer
+from .geometry import expandLayer
+from .geometry import getBbox
+from .geometry import getGeometricAreas
+from .geometry import getCentroids
 
 # Clustering
-from toolboxes import execAZP
-from toolboxes import execArisel
-from toolboxes import execAZPRTabu
-from toolboxes import execAZPSA
-from toolboxes import execAZPTabu
-from toolboxes import execRandom
-from toolboxes.cluster.pRegionsExact import execPregionsExact
-from toolboxes.cluster.pRegionsExactCP import execPregionsExactCP
-from toolboxes.cluster.minpOrder import execMinpOrder
-from toolboxes.cluster.minpFlow import execMinpFlow
-from toolboxes import execMaxpTabu
-from toolboxes import execAMOEBA
-from toolboxes import originalSOM
-from toolboxes import geoSom
-from toolboxes import geoAssociationCoef
-from toolboxes import redistributionCoef
-from toolboxes import similarityCoef
+from .toolboxes import execAZP
+from .toolboxes import execArisel
+from .toolboxes import execAZPRTabu
+from .toolboxes import execAZPSA
+from .toolboxes import execAZPTabu
+from .toolboxes import execRandom
+from .toolboxes.cluster.pRegionsExact import execPregionsExact
+from .toolboxes.cluster.pRegionsExactCP import execPregionsExactCP
+from .toolboxes.cluster.minpOrder import execMinpOrder
+from .toolboxes.cluster.minpFlow import execMinpFlow
+from .toolboxes import execMaxpTabu
+from .toolboxes import execAMOEBA
+from .toolboxes import originalSOM
+from .toolboxes import geoSom
+from .toolboxes import geoAssociationCoef
+from .toolboxes import redistributionCoef
+from .toolboxes import similarityCoef
 
 
 # Irregular Maps
 try:
-    from toolboxes import topoStatistics
-    from toolboxes import noFrontiersW
+    from .toolboxes import topoStatistics
+    from .toolboxes import noFrontiersW
 except:
     pass
 
 # Spatial statistics
-from toolboxes import globalInequalityChanges
-from toolboxes import inequalityMultivar
-from toolboxes import interregionalInequalityTest
-from toolboxes import interregionalInequalityDifferences
+from .toolboxes import globalInequalityChanges
+from .toolboxes import inequalityMultivar
+from .toolboxes import interregionalInequalityTest
+from .toolboxes import interregionalInequalityDifferences
 
 
-from outputs import dbfWriter
-from outputs import shpWriterDis
-from outputs import csvWriter
+from .outputs import dbfWriter
+from .outputs import shpWriterDis
+from .outputs import csvWriter
 
 # Contiguity function
-from contiguity import dict2matrix 
-from contiguity import dict2gal
-from contiguity import dict2csv
+from .contiguity import dict2matrix
+from .contiguity import dict2gal
+from .contiguity import dict2csv
 
 # Layer
 # Layer.dissolveMap
@@ -172,22 +172,22 @@ class Layer():
         >>> X[variableName1] = [function1, function2,....]
         >>> X[variableName2] = [function1, function2,....]
 
-        Where functions are strings which represent the names of the functions to be used on the given variable (variableName). Functions could be,'sum','mean','min','max','meanDesv','stdDesv','med', 'mode','range','first','last','numberOfAreas'. 
-        
+        Where functions are strings which represent the names of the functions to be used on the given variable (variableName). Functions could be,'sum','mean','min','max','meanDesv','stdDesv','med', 'mode','range','first','last','numberOfAreas'.
+
         If you do not use this structure, the new layer (i.e.., the dissolved
         map) will have just the ID field.
 
         **Examples**
 
         Dissolve china using the result from an aggregation algorithm ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.cluster('azpSa', ['Y1990', 'Y991'], 5)
             china.dissolveMap()
-        
+
         Dissolve a China layer using a stored result on BELS ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.dissolveMap(var="BELS")
@@ -201,13 +201,13 @@ class Layer():
             dataOperations = {'Y1978':['sum', 'mean'],'Y1979':['sum', 'mean']}
             china.dissolveMap(dataOperations=dataOperations)
 
-        
+
         """
-        print "Dissolving lines"
+        print("Dissolving lines")
         sh = Layer()
         if var is not None:
             if var in self.fieldNames:
-                region2areas = map(lambda x: x[0],self.getVars(var).values())
+                region2areas = [x[0] for x in list(self.getVars(var).values())]
                 dissolveLayer(self, sh, region2areas)
                 sh.outputDissolve = {"objectiveFunction": "Unknown",\
                 "runningTime": "Unknown", "aggregationVariables": "Unknown",\
@@ -233,11 +233,11 @@ class Layer():
                 sh.outputDissolve = dissolveInfo
                 sh.Y,sh.fieldNames = dissolveData(self.fieldNames, self.Y,
                                                       self.region2areas, dataOperations)
-        print "Done"
+        print("Done")
 
     def getVars(self, *args):
         """Getting subsets of data
-        
+
         :param args: subset data fieldNames.
         :type args: tuple
         :rtype: Dictionary (Data subset)
@@ -246,16 +246,16 @@ class Layer():
 
         This function allows the user to extract a subset of variables from a
         layer object.
-        
+
         **Examples**
 
         Getting Y1998 and Y1997 from China ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             subset = china.getVars(["Y1998", "Y1997"])
         """
-        print "Getting variables"
+        print("Getting variables")
         fields = []
         for argument in args:
             if isinstance(argument, list):
@@ -266,19 +266,19 @@ class Layer():
         labels = self.fieldNames
         count = 0
         subY = {}
-        for i in self.Y.keys():
+        for i in list(self.Y.keys()):
             subY[i] = []
         for j in fields:
             for i in range(len(labels)):
                 if labels[i] == j:
-                    for j in self.Y.keys():
+                    for j in list(self.Y.keys()):
                         subY[j] = subY[j] + [self.Y[j][i]]
-        print "Variables successfully extracted"
+        print("Variables successfully extracted")
         return subY
 
     def addVariable(self, names, values):
         """Adding new variables
-        
+
         :param names: field name
         :type names: list
         :param values: data
@@ -307,7 +307,7 @@ class Layer():
             chinaData = clusterpy.importCSV("clusterpy/data_examples/china.csv")
             china.addVariable(chinaData[1],chinaData[0])
         """
-        print "Adding variables"
+        print("Adding variables")
         self.fieldNames += (names)
         for area in range(len(values)):
             if area in self.Y:
@@ -317,11 +317,11 @@ class Layer():
                     self.Y[area] += values[area]
             else:
                 self.Y[area] = [values[area]]
-        print "Done"
+        print("Done")
 
     def spatialLag(self,variables,wtype="queen"):
         """Spatial lag of a set of variables
-        
+
         :param variables: data dictionary to be lagged
         :type variables: dictionary
 
@@ -345,8 +345,8 @@ class Layer():
         elif wtype == 'queen':
             w = self.Wqueen
         else:
-            print "Contiguity type is not supported"
-        
+            print("Contiguity type is not supported")
+
         wmatrix = dict2matrix(w,std=1,diag=0)
         data = self.getVars(*variables)
         lags = spatialLag(data,wmatrix)
@@ -355,11 +355,11 @@ class Layer():
 
     def generateData(self, process, wtype, n, *args, **kargs):
         """Simulate data according to a specific stochastic process
-        
+
         :param process: type of data to be generated.
         :type process: string
         :param wtype: contiguity matrix to be used in order to generate the data.
-        :type wtype: string 
+        :type wtype: string
         :param n: number of processes to be generated.
         :type n: integer
         :param args: extra parameters of the simulators
@@ -369,12 +369,12 @@ class Layer():
         :type integer: boolean
 
         **Description**
-        
+
         In order to make the random data generation on clusterPy easier, we
-        provide a wide range of processes that can be generated with a single command. At the 
+        provide a wide range of processes that can be generated with a single command. At the
         moment the available processes and their optional parameters are:
 
-        * **Spatial autoregressive process (SAR)** 
+        * **Spatial autoregressive process (SAR)**
             * rho: Autoregressive coefficient
         * **Spatial Moving Average (SMA)**
             * rho: Autoregressive coefficient
@@ -382,15 +382,15 @@ class Layer():
             * rho: Autoregressive coefficient
         * **Random Spatial Clusters (Spots)**
             * nc: Number of clusters
-            * compact: Compactness level (0 chain clusters - 1 compact clusters) 
+            * compact: Compactness level (0 chain clusters - 1 compact clusters)
             * Zalpha: Z value for the significance level of each cluster.
         * **Positive Random Spatial Clusters (postive_spots)**
             * nc: Number of clusters
-            * compact: Compactness level (0 chain clusters - 1 compact clusters) 
+            * compact: Compactness level (0 chain clusters - 1 compact clusters)
             * Zalpha: Z value of the significance level of each cluster. It is necesary
             to take into account that the dsitribution of data is the absolute of a normal
             distribution.
-        * **Uniform process (Uniform)** 
+        * **Uniform process (Uniform)**
             * min: Uniform minimum
             * max: Uniform maximum
         * **Global Binomial (GBinomial)** (Only one distribution for all the areas)
@@ -401,10 +401,10 @@ class Layer():
             * Var_prob: Probability field name.
 
         **Examples**
-        
+
         Generating a float SAR variable for China with an autoregressive
         coefficient of 0.7 ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.generateData("SAR", "rook", 1, 0.7)
@@ -428,13 +428,13 @@ class Layer():
             china.generateData("SMA", "queen", 1, 0.3, integer=1)
 
         Generating a float CAR variable for China with an autoregressive coefficient of 0.7 ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.generateData("CAR", "queen", 1, 0.7)
 
         Generating an integer CAR variable for China with an autoregressive coefficient of 0.7 ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.generateData("CAR", "queen", 1, 0.7, integer=1)
@@ -456,7 +456,7 @@ class Layer():
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.generateData("positive_spots", "queen", 1, 4, 0.7, 1.64)
-        
+
         Generating a float Spot process with only positive values over a grid
         of 30 by 30 with 4 clusters, a compactness level of 0.7 and an Zalpha
         value of 1.64 ::
@@ -464,7 +464,7 @@ class Layer():
             import clusterpy
             grid = clusterpy.createGrid(30,30)
             grid.generateData("positive_spots", "queen", 1, 4, 0.7, 1.64)
-        
+
         Generating a local Binomial process on china with Y1998 as population level and simulated uniform probability (Uniform31) as risk level. ::
 
             import clusterpy
@@ -492,12 +492,12 @@ class Layer():
             china.generateData("Uniform", 'queen', 1, 1, 10, integer=1)
         """
         fields = []
-        print "Generating " + process
+        print("Generating " + process)
         if wtype == 'rook':
             w = self.Wrook
         else:
             w = self.Wqueen
-        if kargs.has_key("integer"):
+        if "integer" in kargs:
             integer = kargs["integer"]
         else:
             integer = 0
@@ -511,16 +511,16 @@ class Layer():
             y = generateCAR(w, n, *args)
             fields.extend(['CAR'+ str(i + len(self.fieldNames)) for i in range(n)])
         elif process == 'Spots':
-            ylist = [generateSpots(w, *args) for i in xrange(n)]
+            ylist = [generateSpots(w, *args) for i in range(n)]
             fields.extend(['Spots' + str(i + len(self.fieldNames)) for i in range(n)])
             y = {}
-            for i in xrange(len(w)):
+            for i in range(len(w)):
                 y[i] = [x[i][0] for x in ylist]
         elif process == 'positive_spots':
-            ylist = [generatePositiveSpots(w, *args) for i in xrange(n)]
+            ylist = [generatePositiveSpots(w, *args) for i in range(n)]
             fields.extend(['pspots' + str(i + len(self.fieldNames)) for i in range(n)])
             y = {}
-            for i in xrange(len(w)):
+            for i in range(len(w)):
                 y[i] = [x[i][0] for x in ylist]
         elif process == 'Uniform':
             y = generateUniform(w, n, *args)
@@ -537,24 +537,24 @@ class Layer():
             y = generateLBinomial(n, y_pob, y_pro)
             fields.extend(['Bino' + str(i + len(self.fieldNames)) for i in range(n)])
 
-        for i in self.Y.keys():
+        for i in list(self.Y.keys()):
             if integer == 1:
                 self.Y[i] = self.Y[i] + [int(z) for z in y[i]]
             else:
                 self.Y[i] = self.Y[i] + y[i]
 
         self.fieldNames.extend(fields)
-        print "Done [" + process + "]" 
-        
+        print("Done [" + process + "]")
+
     def dataOperation(self,function):
         """
         This function allows the creation of new variables. The variables must
         be created using python language operations between variables.
 
-        :param function: This string is a python language operation which must include the variable name followed by the character "=" and the operations that must be executed in order to create the new variable.  The new variable will be added as a new data attribute and the variable name will be added to fieldNames.  
+        :param function: This string is a python language operation which must include the variable name followed by the character "=" and the operations that must be executed in order to create the new variable.  The new variable will be added as a new data attribute and the variable name will be added to fieldNames.
         :type function: string
-        
-        
+
+
         **Examples**
 
         Creating a new variable wich is the sum of another two ::
@@ -590,30 +590,30 @@ class Layer():
                 raise NameError("Variable " + str(fieldName) + " already exists")
             function = m.group(2)
             newVariable = fieldOperation(function, self.Y, self.fieldNames)
-            print "Adding " + fieldName + " to fieldNames"
-            print "Adding values from " + function + " to Y"
+            print("Adding " + fieldName + " to fieldNames")
+            print("Adding values from " + function + " to Y")
             self.addVariable([fieldName], newVariable)
         else:
             raise NameError("Function is not well structured, it must include variable\
 Name followed by = signal followed by the fieldOperations")
-    
+
 
     def resetData(self):
         """
         All data available on the layer is deleted, keeping only the 'ID'
-        variable 
+        variable
 
-        **Examples** ::   
+        **Examples** ::
 
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.resetData()
         """
-        for i in self.Y.keys():
+        for i in list(self.Y.keys()):
             self.Y[i] = [i]
         self.fieldNames = ['ID']
-        print "Done"
-    
+        print("Done")
+
     def cluster(*args, **kargs):
         """
         Layer.cluster contains a wide set of algorithms for clustering with spatial contiguity constraints. For literature reviews on constrained clustering, see [Murtagh1985]_, [Gordon1996]_, [Duque_Ramos_Surinach2007]_.
@@ -623,11 +623,11 @@ Name followed by = signal followed by the fieldOperations")
 
         The available algorithms are:
 
-        * Arisel [Duque_Church2004]_, [Duque_Church_Middleton2011]_: 
+        * Arisel [Duque_Church2004]_, [Duque_Church_Middleton2011]_:
             * :ref:`Arisel description <arisel_description>`.
             * :ref:`Using Arisel with clusterPy <arisel_examples>`.
 
-        * AZP [Openshaw_Rao1995]_: 
+        * AZP [Openshaw_Rao1995]_:
             * :ref:`AZP description <azp_description>`.
             * :ref:`Using AZP with clusterPy <azp_examples>`.
 
@@ -646,7 +646,7 @@ Name followed by = signal followed by the fieldOperations")
         ORGANIZAR QUE FUNCIONE
         * P-regions (Exact) [Duque_Church_Middleton2009]_.
             * :ref:`P-regions description <pregions_description>`.
-            * :ref:`Using P-regions with clusterPy <pregions_examples>`. 
+            * :ref:`Using P-regions with clusterPy <pregions_examples>`.
 
         * Max-p-regions (Tabu) [Duque_Anselin_Rey2010]_.
             * :ref:`Max-p description <maxp_description>`.
@@ -659,19 +659,19 @@ Name followed by = signal followed by the fieldOperations")
         * SOM [Kohonen1990]_.
             * :ref:`SOM description <som_description>`.
             * :ref:`Using SOM with clusterPy <som_examples>`.
-         
+
         * geoSOM [Bacao_Lobo_Painho2004]_.
             * :ref:`GeoSOM description <geosom_description>`.
             * :ref:`Using geoSOM with clusterPy <geosom_examples>`.
 
-        * Random     
+        * Random
 
         :param args: Basic parameters.
         :type args: tuple
         :param kargs: Optional parameter keywords.
         :type kargs: dictionary
-        
-        The dataOperations dictionary used by 'dissolveMap <dissolveMap>' could be 
+
+        The dataOperations dictionary used by 'dissolveMap <dissolveMap>' could be
         passed in order to specify which data should be calculated for the dissolved
         layer. The dataOperations dictionary must be:
 
@@ -679,10 +679,10 @@ Name followed by = signal followed by the fieldOperations")
         >>> X[variableName1] = [function1, function2,....]
         >>> X[variableName2] = [function1, function2,....]
 
-        Where functions are strings wich represents the name of the functions to 
+        Where functions are strings wich represents the name of the functions to
         be used on the given variableName. Functions could be,'sum','mean','min',
         'max','meanDesv','stdDesv','med', 'mode','range','first','last',
-        'numberOfAreas. By deffault just ID variable is added to the dissolved 
+        'numberOfAreas. By deffault just ID variable is added to the dissolved
         map.
 
         **Examples**
@@ -715,7 +715,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(3, 3)
             instance.generateData("SAR", 'rook', 2, 0.9)
@@ -725,7 +725,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 4** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -736,7 +736,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 5** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -747,11 +747,11 @@ Name followed by = signal followed by the fieldOperations")
 
 
         .. image:: ../_static/ARISEL5.png
-       
+
         .. _azp_examples:
 
         **AZP**
-       
+
         :ref:`AZP description <azp_description>`
 
         **Example 1** ::
@@ -778,7 +778,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(3, 3)
             instance.generateData("SAR", 'rook', 2, 0.9)
@@ -788,7 +788,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 4** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -799,7 +799,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 5** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -814,7 +814,7 @@ Name followed by = signal followed by the fieldOperations")
         .. _azpsa_examples:
 
         **AZP Simulated Annealing**
-        
+
         :ref:`AZP Simulated Annealing description <azpsa_description>`
 
         **Example 1** ::
@@ -840,7 +840,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(3, 3)
             instance.generateData("SAR", 'rook', 2, 0.9)
@@ -850,7 +850,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 4** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -861,7 +861,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 5** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -879,7 +879,7 @@ Name followed by = signal followed by the fieldOperations")
         :ref:`AZP tabu description <azpt_description>`
 
         **Example 1** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(10, 10)
             instance.generateData("SAR", 'rook', 1, 0.9)
@@ -901,7 +901,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(3, 3)
             instance.generateData("SAR", 'rook', 2, 0.9)
@@ -911,7 +911,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 4** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -923,7 +923,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 5** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -964,7 +964,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(3, 3)
             instance.generateData("SAR", 'rook', 2, 0.9)
@@ -974,7 +974,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 4** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -985,7 +985,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 5** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -1000,7 +1000,7 @@ Name followed by = signal followed by the fieldOperations")
         .. _lamaxp_examples:
 
         **MAX-P**
-        
+
         :ref:`Max-p region description <maxp_description>`
 
         **Example 1** ::
@@ -1028,7 +1028,7 @@ Name followed by = signal followed by the fieldOperations")
 
 
         **Example 3** ::
-        
+
             import clusterpy
             calif = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             calif.fieldNames
@@ -1057,7 +1057,7 @@ Name followed by = signal followed by the fieldOperations")
         :ref:`AMOEBA description <amoeba_description>`
 
         **Example 1** ::
-            
+
             import clusterpy
             instance = clusterpy.createGrid(33, 33)
             instance.generateData("Spots", 'rook', 1, 2, 0.7, 0.99)
@@ -1144,7 +1144,7 @@ Name followed by = signal followed by the fieldOperations")
         .. image:: ../_static/geosom1.png
 
         **Example 2** ::
-        
+
             import clusterpy
             instance = clusterpy.createGrid(33,33)
             instance.generateData("SAR",'rook',1,0.9)
@@ -1163,12 +1163,12 @@ Name followed by = signal followed by the fieldOperations")
 
 
         .. image:: ../_static/geosom3.png
-        
+
         """
         self = args[0]
         algorithm = args[1]
         # Extracting W type from arguments
-        if kargs.has_key('wType'):
+        if 'wType' in kargs:
             wType = kargs['wType']
             kargs.pop('wType')
         else:
@@ -1181,17 +1181,17 @@ Name followed by = signal followed by the fieldOperations")
         else:
             algorithmW = self.Wrook
         # Extracting standardize variables
-        if kargs.has_key('std'):
+        if 'std' in kargs:
             std = kargs.pop('std')
         else:
             std = 0
         # Setting dissolve according to requirement
-        if kargs.has_key("dissolve"):
+        if "dissolve" in kargs:
             dissolve = kargs.pop('dissolve')
         else:
             dissolve = 0
         # Extracting dataOperations
-        if kargs.has_key("dataOperations"):
+        if "dataOperations" in kargs:
             dataOperations = kargs.pop("dataOperations")
         else:
             dataOperations = {}
@@ -1199,8 +1199,8 @@ Name followed by = signal followed by the fieldOperations")
         if algorithm in ["geoSom","amoeba","som"]:
             dissolve = 0
             dataOperations = {}
-            print "The parameters ""dissolve"" and ""dataOperations"" is not available for the this \
-algorithm" 
+            print("The parameters ""dissolve"" and ""dataOperations"" is not available for the this \
+algorithm")
 
         if algorithm == "geoSom":
             fieldNames = tuple(args[2])
@@ -1210,12 +1210,12 @@ algorithm"
             algorithmY = self.getVars(*fieldNames)
             if std==1:
                 for nn,name in enumerate(fieldNames):
-                    values = [i[0] for i in self.getVars(name).values()]
+                    values = [i[0] for i in list(self.getVars(name).values())]
                     mean_value = numpy.mean(values)
                     std_value = numpy.std(values)
                     newVar = fieldOperation("( " + name + " - " + str(mean_value) + ")/float(" + str(std_value) + ")", algorithmY, fieldNames)
                     for nv,val in enumerate(newVar):
-						algorithmY[nv][nn] = val
+                        algorithmY[nv][nn] = val
                 # Adding original population to de algortihmY
                 if algorithm == "maxpTabu":
                     population = fieldNames[-1]
@@ -1235,13 +1235,13 @@ algorithm"
             "som": lambda *args, **kargs: originalSOM(*args, **kargs),
             "geoSom": lambda *args, **kargs: geoSom(*args, **kargs),
             "pRegionsExact": lambda *args, **kargs: execPregionsExact(*args, **kargs),
-			"pRegionsExactCP": lambda *args, **kargs: execPregionsExactCP(*args, **kargs),
+                        "pRegionsExactCP": lambda *args, **kargs: execPregionsExactCP(*args, **kargs),
             "minpOrder": lambda *args, **kargs: execMinpOrder(*args, **kargs),
             "minpFlow": lambda *args, **kargs: execMinpFlow(*args, **kargs),
-			"maxpTabu": lambda *args, **kargs: execMaxpTabu(*args, **kargs)
+                        "maxpTabu": lambda *args, **kargs: execMaxpTabu(*args, **kargs)
         }[algorithm](*args, **kargs)
         self.outputCluster[name]["weightType"] = wType
-        self.outputCluster[name]["aggregationVariables"] = fieldNames 
+        self.outputCluster[name]["aggregationVariables"] = fieldNames
         self.outputCluster[name]["OS"] = os.name
         self.outputCluster[name]["proccesorArchitecture"] = os.getenv('PROCESSOR_ARCHITECTURE')
         self.outputCluster[name]["proccesorIdentifier"] = os.getenv('PROCESSOR_IDENTIFIER')
@@ -1260,10 +1260,10 @@ algorithm"
             This function runs the algorithm spMorph, devised by
             [Duque_Ye_Folch2012], for a predefined shock. spMorph is an
             exploratory space-time analysis tool for describing processes of
-            spatial redistribution of a given variable.  
-            
+            spatial redistribution of a given variable.
 
-            :keyword variables: List with variables to be analyzed. The variables must be chronologically sorted; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981', 'Y1982', 'Y1983', 'Y1984', 'Y1985', 'Y1986', 'Y1987', 'Y1988'] 
+
+            :keyword variables: List with variables to be analyzed. The variables must be chronologically sorted; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981', 'Y1982', 'Y1983', 'Y1984', 'Y1985', 'Y1986', 'Y1987', 'Y1988']
             :type variables: list
 
             :keyword minShocks: minimum number of shocks to evaluate
@@ -1272,17 +1272,17 @@ algorithm"
             :keyword maxShocks: maximum number of shocks to evaluate
             :type maxShocks: integer
 
-            :keyword inequalityIndex: name of the inequality index to be utilized in the algorithm. By now, the only option is 'theil' 
+            :keyword inequalityIndex: name of the inequality index to be utilized in the algorithm. By now, the only option is 'theil'
             :type inequalityIndex: string
 
             :keyword outFile: Name for the output file; e.g.: "spMorph" (no extension)
-            :type outFile: string 
+            :type outFile: string
 
 
             :keyword clusterAlgorithm: name of the spatial clustering algorithm to be utilized in the algorithm. The clustering algorithm must be any version of 'azp' or 'arisel'
             :type clusterAlgorithm: string
 
-            :keyword nClusters: number of regions 
+            :keyword nClusters: number of regions
             :type nClusters: integer
 
             After the parameter nClusters you can include more parameters related with the clustering algorithm that you are using. We recomend not to use dissolve=1 option
@@ -1313,7 +1313,7 @@ algorithm"
         auxline = auxline.replace("]","")
         auxline = auxline.replace("'","")
         header = "".join(["#shocks,shocks,shock,",auxline,"\n"])
-        auxline = str(range(len(self.areas)))
+        auxline = str(list(range(len(self.areas))))
         auxline = auxline.replace("[","")
         auxline = auxline.replace("]","")
         header_a2r = "".join(["#shocks,shocks,shock,",auxline,"\n"])
@@ -1381,10 +1381,10 @@ algorithm"
             This function runs the algorithm spMorph, devised by
             [Duque_Ye_Folch2012], for a predefined shock. spMorph is an
             exploratory space-time analysis tool for describing processes of
-            spatial redistribution of a given variable.  
-            
+            spatial redistribution of a given variable.
 
-            :keyword variables: List with variables to be analyzed. The variables must be chronologically sorted; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981', 'Y1982', 'Y1983', 'Y1984', 'Y1985', 'Y1986', 'Y1987', 'Y1988'] 
+
+            :keyword variables: List with variables to be analyzed. The variables must be chronologically sorted; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981', 'Y1982', 'Y1983', 'Y1984', 'Y1985', 'Y1986', 'Y1987', 'Y1988']
             :type variables: list
 
             :keyword shokVariables: list with the name of the variable (in
@@ -1392,13 +1392,13 @@ algorithm"
             included as the first variable of the next period; e.g: ['Y1981', 'Y1984'], this implies that the periods to analyze are: 1978-1980; 1981-1983 and 1984-1988.
             :type shokVariables: list
 
-            :keyword inequalityIndex: name of the inequality index to be utilized in the algorithm. By now, the only option is 'theil' 
+            :keyword inequalityIndex: name of the inequality index to be utilized in the algorithm. By now, the only option is 'theil'
             :type inequalityIndex: string
 
             :keyword clusterAlgorithm: name of the spatial clustering algorithm to be utilized in the algorithm. The clustering algorithm must be any version of 'azp' or 'arisel'
             :type clusterAlgorithm: string
 
-            :keyword nClusters: number of regions 
+            :keyword nClusters: number of regions
             :type nClusters: integer
 
             After the parameter nClusters you can include more parameters related with the clustering algorithm that you are using. We recomend not to use dissolve=1 option
@@ -1408,11 +1408,11 @@ algorithm"
             t: total Theil
 
             tb: between groups inequality
-            
+
             tw: within groups inequality
-            
+
             lb: lower bound
-            
+
             a2r: solution vector for the regionalization algorithm
 
             **Example**::
@@ -1425,9 +1425,9 @@ algorithm"
             shokVariable = ['Y1984']
             t,tb,tw,tw_t,lb,a2r=china.inequalityShock(variables,shokVariable,'theil',
             'arisel',5)
-            
 
-        """    
+
+        """
         tempSet = []
         area2regions = {}
         area2regionsList = []
@@ -1478,10 +1478,10 @@ be a shock period")
             tw.append(tw2)
             tw_t.append(tw_t2)
             area2regionsList.append(a2rc)
-        
+
         lowerTw_t = [min(x) for x in zip(*tw_t)]
         return t, tb, tw, tw_t, lowerTw_t,area2regionsList
-            
+
 
 
 
@@ -1502,7 +1502,7 @@ be a shock period")
             variables = args[2]
             area2region = args[3]
             Y = self.getVars(*variables)
-            area2region = [x[0] for x in self.getVars(area2region).values()]
+            area2region = [x[0] for x in list(self.getVars(area2region).values())]
             args = (Y,area2region)
             result = inequalityMultivar(*args,**kargs)
         elif algorithm == 'interregionalInequalityTest':
@@ -1519,7 +1519,7 @@ be a shock period")
             outFile = args[4]
             Y = self.getVars(*fieldNames)
             area2regions = self.getVars(area2region)
-            area2regions = zip(*area2regions.values())
+            area2regions = list(zip(*list(area2regions.values())))
             args = (Y,fieldNames,area2regions,area2region,outFile)
             result = interregionalInequalityDifferences(*args,**kargs)
         return result
@@ -1529,7 +1529,7 @@ be a shock period")
             Documentacion Juank
 
         Exploratory spatial data analysis algorithms. For more information
-        about the basic and the optional parameters, read the official 
+        about the basic and the optional parameters, read the official
         'algorithm documentation <www.rise-group.org>'
 
         :param args: basic paramters.
@@ -1537,10 +1537,10 @@ be a shock period")
         :param kargs: optional parameter keywords.
         :type kargs: dictionary
 
-        **Examples** 
-        
+        **Examples**
+
         Geographical association coefficient (GAC)
-        
+
         >>> import clusterpy
         >>> new = clusterpy.createGrid(10, 10)
         >>> new.generateData("SAR", 'rook', 1, 0.9)
@@ -1554,7 +1554,7 @@ be a shock period")
         >>> new.generateData("SAR", 'rook', 1, 0.9)
         >>> new.generateData("SAR", 'rook', 1, 0.9)
         >>> rdc = new.esda("RDC", "SAR1", "SAR2")
-        
+
         Similarity coefficient
 
         >>> import clusterpy
@@ -1577,28 +1577,28 @@ be a shock period")
     def exportArcData(self, filename):
         """
         Creates an ESRI shapefile from a clusterPy's layer.
-        
+
         :param filename: shape file name to create, without ".shp"
-        :type filename: string 
+        :type filename: string
 
         **Examples** ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportArcData("china")
         """
-        print "Writing ESRI files"
+        print("Writing ESRI files")
         shpWriterDis(self.areas, filename, self.shpType)
         self.exportDBFY(filename)
-        print "ESRI files created"
+        print("ESRI files created")
 
-    def exportDBFY(self, fileName, *args):    
+    def exportDBFY(self, fileName, *args):
         """Exports the database file
 
         :param fileName: dbf file name to create, without ".dbf"
-        :type fileName: string 
+        :type fileName: string
         :param args: variables subset to be exported
-        :type args: tuple 
+        :type args: tuple
 
         **Examples** ::
 
@@ -1606,39 +1606,39 @@ be a shock period")
             clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportDBFY("china")
         """
-        print "Writing DBF file"
+        print("Writing DBF file")
         if args != ():
-            Y = self.getVars(self, *args) 
+            Y = self.getVars(self, *args)
             fieldNames = args
         else:
             Y = self.Y
             fieldNames = self.fieldNames
         fieldspecs = []
-        types = Y[0] 
+        types = Y[0]
         for i in types:
             itype = str(type(i))
             if 'str' in itype:
                 fieldspecs.append(('C', 10, 0))
             else:
                 fieldspecs.append(('N', 10, 3))
-        records = range(len(Y))
-        for i in xrange(len(Y)):
+        records = list(range(len(Y)))
+        for i in range(len(Y)):
             if len(fieldNames) == 2:
                 records[i] = []
-                records[i] = records[i] + Y.values()[i]
+                records[i] = records[i] + list(Y.values())[i]
             else:
                 records[i] = []
-                records[i] = records[i] + Y.values()[i]
+                records[i] = records[i] + list(Y.values())[i]
         dbfWriter(fieldNames, fieldspecs, records, fileName + '.dbf')
-        print "Done"
+        print("Done")
 
     def exportCSVY(self, fileName, *args):
         """Exports layers data on .csv file
 
         :param fileName: csv file name to create, without ".csv"
-        :type fileName: string 
+        :type fileName: string
         :param args: variables subset to be exported
-        :type args: tuple 
+        :type args: tuple
 
         **Examples** ::
 
@@ -1646,50 +1646,50 @@ be a shock period")
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportCSVY("ChinaCSV")
         """
-        print "Writing CSV files"
+        print("Writing CSV files")
         if args != ():
-            Y = self.getVars(self, *args) 
+            Y = self.getVars(self, *args)
             fieldNames = args
         else:
             Y = self.Y
             fieldNames = self.fieldNames
-        records = Y.values()
+        records = list(Y.values())
         csvWriter(fileName, fieldNames, records)
-        print "Done"
+        print("Done")
 
     def exportGALW(self, fileName, wtype='rook', idVariable='ID'):
-        """        
+        """
         Exports the contiguity W matrix on a gal file
 
         :param fileName: gal file name to create, without ".gal"
-        :type fileName: string 
+        :type fileName: string
         :keyword wtype: w type to export, default is 'rook'
-        :type wtype: string 
+        :type wtype: string
         :keyword idVariable: id variable fieldName, default is 'ID'
-        :type idVariable: string  
+        :type idVariable: string
 
-        **Example 1**        
+        **Example 1**
         Exporting rook matrix  ::
 
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportGALW("chinaW", wtype='rook')
 
-        **Example 2**        
+        **Example 2**
         Exporting queen matrix  ::
 
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportGALW("chinaW", wtype='queen')
 
-        **Example 3**        
+        **Example 3**
         Exporting queen matrix based on a variable different from ID  ::
 
             import clusterpy
             california = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
             california.exportGALW("californiaW", wtype='queen',idVariable="MYID")
 
-        **Example 3**        
+        **Example 3**
         Exporting a customW matrix imported from a GWT file::
 
             import clusterpy
@@ -1697,7 +1697,7 @@ be a shock period")
             china.customW = clusterpy.importGWT("clusterpy/data_examples/china_gwt_658.193052")
             china.exportGALW("chinaW", wtype='custom')
         """
-        print "Writing GAL file"
+        print("Writing GAL file")
         if wtype == 'rook':
             nw = self.Wrook
         elif wtype == 'queen':
@@ -1713,23 +1713,23 @@ be a shock period")
         """
         Exports the nth contiguity W matrix on a csv file
 
-        :param wDict: Contiguity dictionary 
+        :param wDict: Contiguity dictionary
         :type wDict: dictionary
         :param idVar: Data dictionary with the id field to be used
         :type idVar: dictionary
         :param fileName: gal file name to create, without ".gal"
-        :type fileName: string 
+        :type fileName: string
         :keyword standarize: True to standardize the variables.
-        :type standarize: boolean  
+        :type standarize: boolean
 
-        **Examples 1**        
+        **Examples 1**
         Writing rook matrix to a csv ::
 
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportCSVW("chinaW", wtype='rook')
 
-        **Examples 2**        
+        **Examples 2**
         Writing rook matrix to a csv ::
 
             import clusterpy
@@ -1737,7 +1737,7 @@ be a shock period")
             china.exportCSVW("chinaW", wtype='queen')
 
         """
-        print "Writing CSV file"
+        print("Writing CSV file")
         if wtype == 'rook':
             nw = copy.deepcopy(self.Wrook)
         elif wtype == 'queen':
@@ -1755,7 +1755,7 @@ be a shock period")
         algorithm has been ran, you wil get an error message.
 
         :param filename: csv file name to create, without ".csv"
-        :type filename: string 
+        :type filename: string
 
         **Examples** ::
 
@@ -1766,24 +1766,24 @@ be a shock period")
         """
         f = open(filename, 'w')
         #try:
-        print "Writing outputs to the CSV"
+        print("Writing outputs to the CSV")
         key0 = 'none'
         cont = 0
         while key0 == 'none' or key0 == "r2aRoot" or key0 == "r2a":
-            key0 = self.outputCluster.keys()[cont]
+            key0 = list(self.outputCluster.keys())[cont]
             cont += 1
-        headers = self.outputCluster[key0].keys()
+        headers = list(self.outputCluster[key0].keys())
         line = ''
         for header in headers:
             line +=  header + ';'
         f.write(line[0: -1] + '\n')
-        for key in self.outputCluster.keys():
+        for key in list(self.outputCluster.keys()):
             line = ''
             for header in headers:
                 if (key != 'r2a' and key != 'r2aRoot'):
-                    line += str(self.outputCluster[key][header]) + ';'  
+                    line += str(self.outputCluster[key][header]) + ';'
             f.write(line[0: -1] + '\n')
-        print "Outputs successfully exported"
+        print("Outputs successfully exported")
         #except:
         #    raise NameError("No algorithm has been run")
         f.close()
@@ -1793,7 +1793,7 @@ be a shock period")
         """export region2area results
 
         :param filename: csv file name to create, without ".csv"
-        :type filename: string 
+        :type filename: string
 
         **Examples** ::
 
@@ -1801,21 +1801,21 @@ be a shock period")
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.exportRegions2area('region2area')
         """
-        print "Writing region2areas"
+        print("Writing region2areas")
         f = open(filename, 'w')
-        data = self.getVars(self.outputCluster.keys())
-        for area in data.keys():
+        data = self.getVars(list(self.outputCluster.keys()))
+        for area in list(data.keys()):
             line = str(area) + ';'
             regions = data[area]
             for region in regions:
-                line += str(region) + ';'  
+                line += str(region) + ';'
             f.write(line[0: -1] + '\n')
         f.close()
-        print "region2areas successfully saved"
+        print("region2areas successfully saved")
 
     def transport(self, xoffset, yoffset):
         """
-        This function transports all the coordinates of a layer object on the 
+        This function transports all the coordinates of a layer object on the
         given offsets.
 
         :param xoffset: length of the translation to be made on the x coordinates
@@ -1829,29 +1829,29 @@ be a shock period")
             clusterpy.importArcData("clusterpy/data_examples/china")
             china.transport(100, 100)
         """
-        print "Changing coordinates"
+        print("Changing coordinates")
         transportLayer(self, xoffset, yoffset)
-        print "Done"
-        
+        print("Done")
+
     def expand(self, xproportion, yproportion):
         """
-        This function scales the layer width and height according to inputs 
-        proportions  
+        This function scales the layer width and height according to inputs
+        proportions
 
         :param xproportion: proportion to scale x
         :type xproportion: float
         :param yproportion: proportion to scale y
         :type yproportion: float
-        
+
         **Example** ::
 
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.expand(100, 100)
         """
-        print "Changing coordinates"
+        print("Changing coordinates")
         expandLayer(self, xproportion, yproportion)
-        print "Done"
+        print("Done")
 
     def getGeometricAreas(self):
         """
@@ -1860,7 +1860,7 @@ be a shock period")
 
         For computational efficiency it's recommended to store the results
         on the layer database using the addVariable layer function.
-        
+
         **Example** ::
 
             import clusterpy
@@ -1878,7 +1878,7 @@ be a shock period")
 
         For computational efficiency it's recommended to store the results
         on the layer database using the addVariable layer function.
-        
+
         **Example** ::
 
             import clusterpy
@@ -1886,13 +1886,13 @@ be a shock period")
             china.getCentroids()
         """
         return getCentroids(self)
-        
+
     def getBbox(self):
         """
         this function returns the boundingbox of the layer layer object.
 
         **Example** ::
-        
+
             import clusterpy
             china = clusterpy.importArcData("clusterpy/data_examples/china")
             china.getBbox()

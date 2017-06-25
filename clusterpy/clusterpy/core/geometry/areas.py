@@ -15,20 +15,20 @@ def getGeometricAreas(layer):
 
     For computational efficiency it's recommended to store the results
     on the layer database using the addVariable layer function.
-    
+
     :param layer: layer with the areas to be calculated
-    :type layer: Layer 
-    
+    :type layer: Layer
+
     Users must call this function through a layer object as can be seen
-    in the example below. 
- 
+    in the example below.
+
     **Example**
 
     >>> import clusterpy
     >>> china = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> china.getGeometricAreas()
     """
-    print "Processing geometric areas"
+    print("Processing geometric areas")
     area = 0
     polygons = layer.areas
     lenAreas = {}
@@ -45,6 +45,5 @@ def getGeometricAreas(layer):
                 ringAcum += p1[0] * p2[1] - p1[1] * p2[0]
             areaAcum += ringAcum
         lenAreas[a] = abs(float(areaAcum) / 2)
-    print "Done"
+    print("Done")
     return lenAreas
-    

@@ -18,13 +18,13 @@ from scipy.sparse import lil_matrix
 def dict2matrix(wDict,std=0,diag=0):
     """Transform the contiguity dictionary to a matrix
 
-    :param wDict: Contiguity dictionary 
+    :param wDict: Contiguity dictionary
     :type wDict: dictionary
-    :param std: 1 to get the standarized matrix 
+    :param std: 1 to get the standarized matrix
     :type std: dictionary
-    
+
     **Example 1** ::
-    
+
     >>> import clusterpy
     >>> lay = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> wmatrix = clusterpy.contiguity.dict2matrix(lay.Wrook)
@@ -32,7 +32,7 @@ def dict2matrix(wDict,std=0,diag=0):
     :rtype: list, List of lists representing the contiguity matrix
     """
     data = []
-    nAreas = len(wDict.keys())
+    nAreas = len(list(wDict.keys()))
     for i in wDict:
         data.append([0]*nAreas)
         data[i][i] = diag
@@ -47,21 +47,21 @@ def dict2matrix(wDict,std=0,diag=0):
 def dict2sparseMatrix(wDict,std=0,diag=0):
     """Transform the contiguity dictionary to a matrix
 
-    :param wDict: Contiguity dictionary 
+    :param wDict: Contiguity dictionary
     :type wDict: dictionary
-    :param std: 1 to get the standarized matrix 
+    :param std: 1 to get the standarized matrix
     :type std: dictionary
-    
+
     **Example 1** ::
-    
+
     >>> import clusterpy
     >>> lay = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> wmatrix = clusterpy.contiguity.dict2matrix(lay.Wrook)
 
     :rtype: list, List of lists representing the contiguity matrix
     """
-    data = lil_matrix((len(wDict.keys()),len(wDict.keys())))
-    nAreas = len(wDict.keys())
+    data = lil_matrix((len(list(wDict.keys())),len(list(wDict.keys()))))
+    nAreas = len(list(wDict.keys()))
     for i in wDict:
         data[i,i] = diag
         ne = len(wDict[i])+ diag

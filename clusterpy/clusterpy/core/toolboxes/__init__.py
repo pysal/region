@@ -11,14 +11,13 @@ __email__ = "contacto@rise-group.org"
 rimapsActive = False
 import os
 import sys
-from cluster import * 
-from sstats import *
+from .cluster import *
+from .sstats import *
 
 folders = os.listdir(os.path.split(__file__)[0])
 if "rimaps" in folders:
     try:
-        from rimaps import *
+        from .rimaps import *
         rimapsActive = True
     except Exception as e:
-        print "Some functions are not available, reason:", e
-
+        print("Some functions are not available, reason:", e)

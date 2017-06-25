@@ -17,35 +17,35 @@ def dict2gal(wDict,idvar,fileName):
     """
     Exports the contiguity W matrix on a gal file
 
-    :param wDict: Contiguity dictionary 
+    :param wDict: Contiguity dictionary
     :type wDict: dictionary
     :param idVar: Data dictionary with the id field to be used
     :type idVar: dictionary
     :param fileName: gal file name to create, without ".gal"
-    :type fileName: string 
+    :type fileName: string
 
-    **Example 1**        
+    **Example 1**
     Exporting rook matrix  ::
 
         import clusterpy
         china = clusterpy.importArcData("clusterpy/data_examples/china")
         china.exportGALW("chinaW", wtype='rook')
 
-    **Example 2**        
+    **Example 2**
     Exporting queen matrix  ::
 
         import clusterpy
         china = clusterpy.importArcData("clusterpy/data_examples/china")
         china.exportGALW("chinaW", wtype='queen')
 
-    **Example 3**        
+    **Example 3**
     Exporting queen matrix based on a variable different from ID  ::
 
         import clusterpy
         california = clusterpy.importArcData("clusterpy/data_examples/CA_Polygons")
         california.exportGALW("californiaW", wtype='queen',idVariable="MYID")
 
-    **Example 3**        
+    **Example 3**
     Exporting a customW matrix imported from a GWT file::
 
         import clusterpy
@@ -53,7 +53,7 @@ def dict2gal(wDict,idvar,fileName):
         china.customW = clusterpy.importGWT("clusterpy/data_examples/china_gwt_658.193052")
         china.exportGALW("chinaW", wtype='custom')
     """
-    print "Writing GAL file"
+    print("Writing GAL file")
     fout = open(fileName + ".gal","w")
     fout.write("".join(["0 ",str(len(idvar))," ",fileName,"\n"]))
     for id in wDict:
@@ -63,9 +63,9 @@ def dict2gal(wDict,idvar,fileName):
         line = []
         for n in wDict[id]:
             line.append(str(int(idvar[n][0])) + " ")
-        line = "".join(line + ["\n"])  
+        line = "".join(line + ["\n"])
         fout.write(line)
-    print "GAL successfully created"
+    print("GAL successfully created")
     fout.close()
 
 
@@ -73,23 +73,23 @@ def dict2csv(wDict,idvar,fileName,standarize=False):
     """
     Exports the nth contiguity W matrix on a csv file
 
-    :param wDict: Contiguity dictionary 
+    :param wDict: Contiguity dictionary
     :type wDict: dictionary
     :param idVar: Data dictionary with the id field to be used
     :type idVar: dictionary
     :param fileName: gal file name to create, without ".gal"
-    :type fileName: string 
+    :type fileName: string
     :keyword standarize: True to standardize the variables.
-    :type standarize: boolean  
+    :type standarize: boolean
 
-    **Examples 1**        
+    **Examples 1**
     Writing rook matrix to a csv ::
 
         import clusterpy
         china = clusterpy.importArcData("clusterpy/data_examples/china")
         china.exportCSVW("chinaW", wtype='rook')
 
-    **Examples 2**        
+    **Examples 2**
     Writing rook matrix to a csv ::
 
         import clusterpy
@@ -102,7 +102,7 @@ def dict2csv(wDict,idvar,fileName,standarize=False):
     line = ",".join(fieldNames)
     fout.write(line + "\n")
     data = []
-    nAreas = len(wDict.keys())
+    nAreas = len(list(wDict.keys()))
     for i in wDict:
         data.append([fieldNames[i+1]] + [0]*nAreas)
         ne = len(wDict[i])
@@ -114,4 +114,4 @@ def dict2csv(wDict,idvar,fileName,standarize=False):
         line = [str(x) for x in data[i]]
         line = ",".join(line)
         fout.write(line + "\n")
-    print "CSV successfully created"
+    print("CSV successfully created")

@@ -10,25 +10,25 @@ __email__ = "contacto@rise-group.org"
 
 __all__ = ['globalInequalityTest']
 
-from theilIndex import theil 
+from .theilIndex import theil
 import numpy
 
 def globalInequalityChanges(Y, fieldNames, outFile, permutations=9999):
-    """Global inequality change test 
+    """Global inequality change test
 
     This function tests whether global inequality has significantly changed
     for the Theil statistic over the period t to t+k. For more information on
     this function see [Rey_Sastre2010] (this function recreates Table 2 in
     that paper).
-    
+
         Layer.inequality('globalInequalityChanges', var, outFile, <permutations>)
 
-    :keyword var: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981'] 
+    :keyword var: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981']
     :type var: list
     :keyword outFile: Name for the output file; e.g.: "regionsDifferenceTest.csv"
-    :type outFile: string 
+    :type outFile: string
     :keyword permutations: Number of random spatial permutations. Default value permutations = 9999.
-    :type permutations: integer 
+    :type permutations: integer
 
 
     **Example 1** ::
@@ -43,18 +43,18 @@ def globalInequalityChanges(Y, fieldNames, outFile, permutations=9999):
         result = {}
         for k in Y:
             result[k] = [Y[k][possition]]
-        return result    
-    
+        return result
+
     def shufflePeriods(Y,pos1,pos2):
         result = {}
         for k in Y:
             possibilities = [Y[k][pos1],Y[k][pos2]]
             result[k] = [possibilities[numpy.random.randint(0,2)]]
-        return result    
+        return result
 
-    print "Creating global Inequality Changes [Rey_Sastre2010 - Table 2]"
+    print("Creating global Inequality Changes [Rey_Sastre2010 - Table 2]")
     results = {}
-    r2a = range(len(Y))
+    r2a = list(range(len(Y)))
     for nv1, var1 in enumerate(fieldNames):
         var = getVar(Y,nv1)
         t1,tb1,tw1 = theil(var,r2a)
@@ -85,6 +85,6 @@ def globalInequalityChanges(Y, fieldNames, outFile, permutations=9999):
             line = line.replace("]","")
             line = line.replace("'","")
             fout.write("".join([line,"\n"]))
-        fout.close()        
-    print "global Inequality Changes created!"
-    return results                
+        fout.close()
+    print("global Inequality Changes created!")
+    return results

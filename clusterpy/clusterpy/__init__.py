@@ -1,7 +1,7 @@
 # encoding: latin2
-print "ClusterPy: Library of spatially constrained clustering algorithms"
+print("ClusterPy: Library of spatially constrained clustering algorithms")
 
-from core import *
+from .core import *
 
 __author__ = "Juan C. Duque (Owner), Boris Dev, Alejandro Betancourt, Jose L. Franco, Andres Cano"
 __credits__ = "Copyright (c) 2010-11 Juan C. Duque"
@@ -24,20 +24,20 @@ def CPhelp(function = ''):
         * createGrid: creates a new Layer with a regular lattice.
         * importShape: reads the geographic information stored on a shapefile.
 
-    For more information about any function just type ''CPhelp('<function>')'' 
+    For more information about any function just type ''CPhelp('<function>')''
     or read the official documentation available on 'documentation <www.rise-group.org>'
-    
+
     **Examples**
 
     To see the help of a class, in this case ''Layer'', type:
-    
+
     >>> import clusterpy
     >>> clusterpy.CPhelp("Layer")
 
     For a specific function, just type the name of the function:
 
     **Example 1**
-    
+
     >>> import clusterpy
     >>> clusterpy.CPhelp("importArcData")
 
@@ -47,10 +47,10 @@ def CPhelp(function = ''):
     >>> clusterpy.CPhelp("new")
     """
     if not function:
-        print(CPhelp.__doc__)
+        print((CPhelp.__doc__))
     else:
         try:
-            exec 'print('+ function + '.__doc__)'
+            exec('print('+ function + '.__doc__)')
         except:
-            print "Invalid Function, to see available functions execute \
-            'CPhelp()'"
+            print("Invalid Function, to see available functions execute \
+            'CPhelp()'")

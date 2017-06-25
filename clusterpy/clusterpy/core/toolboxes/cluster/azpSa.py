@@ -10,15 +10,15 @@ __email__ = "contacto@rise-group.org"
 
 import numpy
 import time as tm
-from componentsAlg import AreaManager
-from componentsAlg import RegionMaker
+from .componentsAlg import AreaManager
+from .componentsAlg import RegionMaker
 
 __all__ = ['execAZPSA']
 
 def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
-    """Simulated Annealing variant of Automatic Zoning Procedure (AZP-SA) 
+    """Simulated Annealing variant of Automatic Zoning Procedure (AZP-SA)
 
-    
+
     AZP-SA aggregates N zones (areas) into M regions. "The M output regions
     should be formed of internally connected, contiguous, zones." ([Openshaw_Rao1995]_ pp 428).
 
@@ -28,8 +28,8 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
     Simulated annealing algorithm "permits moves which result in a worse value
     of the objective function but with a probability that diminishes
     gradually, through iteration time" ([Openshaw_Rao1995]_ pp 431).
-    
-    
+
+
     In Openshaw and Rao (1995) the objective function is not defined because
     AZP-Tabu can be applied to any function, F(Z). "F(Z) can be any function
     defined on data for the M regions in Z, and Z is the allocation of each of
@@ -43,23 +43,23 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
     objective function, we set the Boltzmann's equation as: R(0,1) <
     exp((-(Candidate Solution - Current Solution) / Current Solution)/T(k)).
     The cooling schedule is T(k) = 0.85 T(k-1) ([Openshaw_Rao1995]_ pp
-    431), with an initial temperature T(0)=1. 
-    
+    431), with an initial temperature T(0)=1.
+
     NOTE: The original algorithm proposes to start from a random initial
     feasible solution. Previous computational experience showed us that this
     approach leads to poor quality solutions. In clusterPy we started from an
     initial solution that starts with a initial set of seeds (as many seed as
     regions) selected using the K-means++ algorithm. From those seeds, other
     neighbouring areas are assigned to its closest (in attribute space)
-    growing region. This strategy has proven better results. :: 
+    growing region. This strategy has proven better results. ::
 
         layer.cluster('azpSa',vars,regions,<wType>,<std>,<initialSolution>,<maxit>,<dissolve>,<dataOperations>)
 
-    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2']) 
+    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2'])
     :type vars: list
-    :keyword regions: Number of regions 
+    :keyword regions: Number of regions
     :type regions: integer
-    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
     :type wType: string
     :keyword std: If = 1, then the variables will be standardized.
     :type std: binary
@@ -78,30 +78,30 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
     >>> X[variableName1] = [function1, function2,....]
     >>> X[variableName2] = [function1, function2,....]
 
-    Where functions are strings wich represents the name of the 
-    functions to be used on the given variableName. Functions 
+    Where functions are strings wich represents the name of the
+    functions to be used on the given variableName. Functions
     could be,'sum','mean','min','max','meanDesv','stdDesv','med',
     'mode','range','first','last','numberOfAreas. By deffault just
     ID variable is added to the dissolved map.
 
     """
-    print "Running original AZP-SA algorithm (Openshaw and Rao, 1995)"
-    print "Number of areas: ", len(y)
+    print("Running original AZP-SA algorithm (Openshaw and Rao, 1995)")
+    print("Number of areas: ", len(y))
     if initialSolution != []:
-        print "Number of regions: ", len(numpy.unique(initialSolution))
+        print("Number of regions: ", len(numpy.unique(initialSolution)))
         pRegions = len(numpy.unique(initialSolution))
     else:
-        print "Number of regions: ", pRegions
-    print "Boltzmann's equation: "
-    print "     R(0,1) < exp((-(Candidate Soution - Current Solution) / Current Solution)/T(k))"
-    print "Cooling schedule: T(k) = 0.85 T(k-1)"
+        print("Number of regions: ", pRegions)
+    print("Boltzmann's equation: ")
+    print("     R(0,1) < exp((-(Candidate Soution - Current Solution) / Current Solution)/T(k))")
+    print("Cooling schedule: T(k) = 0.85 T(k-1)")
     if pRegions >= len(y):
         message = "\n WARNING: You are aggregating "+str(len(y))+" into"+\
         str(pRegions)+" regions!!. The number of regions must be an integer"+\
         " number lower than the number of areas being aggregated"
-        raise Exception, message 
-    
-    distanceType = "EuclideanSquared" 
+        raise Exception(message)
+
+    distanceType = "EuclideanSquared"
     distanceStat = "Centroid"
     objectiveFunctionType = "SS"
     selectionType = "Minimum"
@@ -117,8 +117,8 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
                     distanceStat=distanceStat,
                     selectionType=selectionType,
                     objectiveFunctionType=objectiveFunctionType)
-    print "initial solution: ", rm.returnRegions()
-    print "initial O.F: ", rm.objInfo
+    print("initial solution: ", rm.returnRegions())
+    print("initial O.F: ", rm.objInfo)
 
     #  LOCAL SEARCH
     rm.AZPSA(alpha, maxit)
@@ -126,8 +126,8 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
     time = tm.time() - start
     Sol = rm.returnRegions()
     Of = rm.objInfo
-    print "FINAL SOLUTION: ", Sol
-    print "FINAL OF: ", Of
+    print("FINAL SOLUTION: ", Sol)
+    print("FINAL OF: ", Of)
     output = { "objectiveFunction": Of,
     "runningTime": time,
     "algorithm": "azpSa",
@@ -137,5 +137,5 @@ def execAZPSA(y, w, pRegions, initialSolution=[], maxit=1):
     "distanceStat": distanceStat,
     "selectionType": selectionType,
     "ObjectiveFuncionType": objectiveFunctionType}
-    print "Done"
+    print("Done")
     return output

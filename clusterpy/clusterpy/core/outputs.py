@@ -8,8 +8,8 @@ __version__ = "1.0.0"
 __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 __all__ = ['shpWriterDis', 'dbfWriter', 'csvWriter']
-    
-import struct 
+
+import struct
 from datetime import datetime
 import itertools
 # shpWriterDis
@@ -20,12 +20,12 @@ import itertools
 
 def shpWriterDis(areas, fileName, type='polygon'):
     """Shapefile writer dispatcher
-    
+
     :param areas: geometry of the layer to be exported.
     :type areas: list
     :param fileName: name of the shape file that will be generated.
     :type fileName: string
-    :param type: layer geometry type, default is polygon. 
+    :param type: layer geometry type, default is polygon.
     :type type: string
 
     **Examples:**
@@ -38,13 +38,13 @@ def shpWriterDis(areas, fileName, type='polygon'):
         shpWriter2(areas, fileName, type=3)
     elif type == 'point':
         shpWriter(areas, fileName, type=1)
-        
-    
+
+
 
 def shpWriter(areas, fileName, type=1):
-    """This function creates a shapefile and a shx file from a clusterPy 
+    """This function creates a shapefile and a shx file from a clusterPy
     list of points.
-    
+
     :param areas: list of points.
     :type areas: list
     :param fileName: the name of the shapefile which will be created(without .shp).
@@ -57,7 +57,7 @@ def shpWriter(areas, fileName, type=1):
     areaValues = ''
     allX = []
     allY = []
-    oldOffset = 50 
+    oldOffset = 50
     shxOffset = 0
     linea2 = ''
     for i,ar in enumerate(areas):
@@ -96,7 +96,7 @@ def shpWriter(areas, fileName, type=1):
         id = struct.pack('>l', i + 1)
         id = struct.pack('>l', i + 1)
         linea = linea + id + contentLength + areaValues
-        linea2 = linea2 + struct.pack('>l', shxOffset) + struct.pack('>l', oldOffset - 4) 
+        linea2 = linea2 + struct.pack('>l', shxOffset) + struct.pack('>l', oldOffset - 4)
     Xmin = min(allX)
     Ymin = min(allY)
     Xmax = max(allX)
@@ -106,25 +106,25 @@ def shpWriter(areas, fileName, type=1):
     Mmin = 0
     Mmax = 0
     flength = (len(linea) + 100)/2
-    header1 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', flength) + struct.pack('<l', 
-                    1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', 
-                    Ymin) + struct.pack('<d', Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', 
+    header1 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', flength) + struct.pack('<l',
+                    1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d',
+                    Ymin) + struct.pack('<d', Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d',
                     Zmax) + struct.pack('<d', Mmin) + struct.pack('<d', Mmax)
     header2 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', (len(linea2) + 100)/2) + struct.pack('<l',
-                    1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d', 
-                    Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d', 
+                    1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d',
+                    Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d',
                     Mmin) + struct.pack('<d', Mmax)
     f.write(header1)
     f.write(linea)
     g.write(header2)
     g.write(linea2)
-    f.close 
-    g.close  
+    f.close
+    g.close
 
 def shpWriter2(areas, fileName, type=5):
-    """This function creates a shapefile and a shx file from a clusterPy 
+    """This function creates a shapefile and a shx file from a clusterPy
     list of polygons or lines.
-    
+
     :param areas: list of areas
     :type areas: list
     :param fileName: name of the shape file which will be created (without the .shp)
@@ -168,8 +168,8 @@ def shpWriter2(areas, fileName, type=5):
             Xmax = 0
             Ymax = 0
         numParts = len(ar)
-        areaValues = struct.pack('<i', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d', 
-                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<i', numParts) + struct.pack('<i', 
+        areaValues = struct.pack('<i', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d',
+                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<i', numParts) + struct.pack('<i',
                         numPoints) + parts + puntos
         varLength = (len(areaValues) / 2)
         contentLength = struct.pack('>l', varLength)
@@ -178,7 +178,7 @@ def shpWriter2(areas, fileName, type=5):
         id = struct.pack('>l', i + 1)
         id = struct.pack('>l', i + 1)
         linea = linea + id + contentLength + areaValues
-        linea2 = linea2 + struct.pack('>l', shxOffset) + struct.pack('>l', oldOffset - 4) 
+        linea2 = linea2 + struct.pack('>l', shxOffset) + struct.pack('>l', oldOffset - 4)
     Xmin = min(allX)
     Ymin = min(allY)
     Xmax = max(allX)
@@ -188,21 +188,21 @@ def shpWriter2(areas, fileName, type=5):
     Mmin = 0
     Mmax = 0
     flength = (len(linea) + 100) / 2
-    header1 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', flength) + struct.pack('<l', 
-                        1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d', 
-                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d', 
+    header1 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', flength) + struct.pack('<l',
+                        1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d',
+                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d',
                         Mmin) +  struct.pack('<d', Mmax)
     header2 = struct.pack('>l', 9994) + struct.pack('>l', 0) * 5 + struct.pack('>l', (len(linea2) + 100) / 2) + struct.pack('<l',
-                        1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d', 
-                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d', 
+                        1000) + struct.pack('<l', type) + struct.pack('<d', Xmin) + struct.pack('<d', Ymin) + struct.pack('<d',
+                        Xmax) + struct.pack('<d', Ymax) + struct.pack('<d', Zmin) + struct.pack('<d', Zmax) + struct.pack('<d',
                         Mmin) + struct.pack('<d', Mmax)
     f.write(header1)
     f.write(linea)
     g.write(header2)
     g.write(linea2)
     f.close
-    g.close  
-    
+    g.close
+
 def dbfWriter(fieldnames, fieldspecs, records, fileName):
     """Export a .dbf file with layer data
 
@@ -216,7 +216,7 @@ def dbfWriter(fieldnames, fieldspecs, records, fileName):
         * D for datetime objects
         * N for ints or decimal objects
         * L for logical values 'T', 'F', or '?'
-    
+
     :type Records: list
     :param Records: Data values.
     """
@@ -230,16 +230,16 @@ def dbfWriter(fieldnames, fieldspecs, records, fileName):
     lenrecord = sum(field[1] for field in fieldspecs) + 1
     hdr = struct.pack('<BBBBLHH20x', ver, yr, mon, day, numrec, lenheader, lenrecord)
     f.write(hdr)
-    for name, (typ, size, deci) in itertools.izip(fieldnames, fieldspecs):
+    for name, (typ, size, deci) in zip(fieldnames, fieldspecs):
         name = name.ljust(11, '\x00')
         fld = struct.pack('<11sc4xBB14x', name, typ, size, deci)
         f.write(fld)
     f.write('\r')
     for record in records:
         f.write(' ')
-        for (typ, size, deci), value in itertools.izip(fieldspecs, record):
+        for (typ, size, deci), value in zip(fieldspecs, record):
             if typ == "N":
-                value = (("%." + str(size) + "f") % value)[0: size].rjust(size, ' ') 
+                value = (("%." + str(size) + "f") % value)[0: size].rjust(size, ' ')
             elif typ == 'D':
                 value = value.strftime('%Y%m%d')
             elif typ == 'L':
@@ -269,7 +269,6 @@ def csvWriter(filename, headers, data):
     for i in data:
         linea = ''
         for j in i:
-            linea += str(j) + ','  
+            linea += str(j) + ','
         f.write(linea[0: -1] + '\n')
     f.close()
-

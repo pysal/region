@@ -8,9 +8,8 @@ __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
 
-from GAC import geoAssociationCoef
-from RDC import redistributionCoef
-from SIMC import similarityCoef
+from .GAC import geoAssociationCoef
+from .RDC import redistributionCoef
+from .SIMC import similarityCoef
 
 __all__ = ['geoAssociationCoef', 'redistributionCoef', 'similarityCoef']
-

@@ -10,14 +10,14 @@ __email__ = "contacto@rise-group.org"
 
 import numpy
 import time as tm
-from componentsAlg import AreaManager
-from componentsAlg import BasicMemory
-from componentsAlg import RegionMaker
+from .componentsAlg import AreaManager
+from .componentsAlg import BasicMemory
+from .componentsAlg import RegionMaker
 
 __all__ = ['execAZPRTabu']
-        
+
 def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
-    """Reactive tabu variant of Automatic Zoning Procedure (AZP-R-Tabu) 
+    """Reactive tabu variant of Automatic Zoning Procedure (AZP-R-Tabu)
 
     AZP-R-Tabu aggregates N zones (areas) into M regions. "The M output
     regions should be formed of internally connected, contiguous, zones."
@@ -29,7 +29,7 @@ def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
     by [Glover1977]_ , is that the former does not require to define
     the number of times a reverse move is prohibited (tabuLength). This
     parameter is dynamically adjusted by the algorithm.
-    
+
     In [Openshaw_Rao1995]_ the objective function is not defined because
     AZP-Tabu can be applied to any function, F(Z). "F(Z) can be any function
     defined on data for the M regions in Z, and Z is the allocation of each of
@@ -48,11 +48,11 @@ def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
 
         layer.cluster('azpRTabu',vars,regions,<wType>,<std>,<initialSolution>,<convTabu>,<dissolve>,<dataOperations>)
 
-    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2']) 
+    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2'])
     :type vars: list
-    :keyword regions: Number of regions 
+    :keyword regions: Number of regions
     :type regions: integer
-    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
     :type wType: string
     :keyword std: If = 1, then the variables will be standardized.
     :type std: binary
@@ -71,35 +71,35 @@ def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
     >>> X[variableName1] = [function1, function2,....]
     >>> X[variableName2] = [function1, function2,....]
 
-    Where functions are strings wich represents the name of the 
-    functions to be used on the given variableName. Functions 
+    Where functions are strings wich represents the name of the
+    functions to be used on the given variableName. Functions
     could be,'sum','mean','min','max','meanDesv','stdDesv','med',
     'mode','range','first','last','numberOfAreas. By deffault just
     ID variable is added to the dissolved map.
-    
+
     """
-    print "Running original AZP-R-Tabu algorithm (Openshaw and Rao, 1995)"
-    print "Number of areas: ", len(y)
+    print("Running original AZP-R-Tabu algorithm (Openshaw and Rao, 1995)")
+    print("Number of areas: ", len(y))
     if initialSolution != []:
-        print "Number of regions: ", len(numpy.unique(initialSolution))
+        print("Number of regions: ", len(numpy.unique(initialSolution)))
         pRegions = len(numpy.unique(initialSolution))
     else:
-        print "Number of regions: ", pRegions
+        print("Number of regions: ", pRegions)
     if pRegions >= len(y):
         message = "\n WARNING: You are aggregating "+str(len(y))+" into"+\
         str(pRegions)+" regions!!. The number of regions must be an integer"+\
         " number lower than the number of areas being aggregated"
-        raise Exception, message 
+        raise Exception(message)
 
     if convTabu <= 0:
         convTabu = len(y)/pRegions  #  convTabu = 230*numpy.sqrt(pRegions)
-    distanceType = "EuclideanSquared" 
+    distanceType = "EuclideanSquared"
     distanceStat = "Centroid"
     objectiveFunctionType = "SS"
     selectionType = "Minimum"
     am = AreaManager(w, y, distanceType)
     start = tm.time()
-    print "Constructing regions"
+    print("Constructing regions")
     rm = RegionMaker(am, pRegions,
                     initialSolution=initialSolution,
                     distanceType=distanceType,
@@ -107,18 +107,18 @@ def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
                     selectionType=selectionType,
                     objectiveFunctionType=objectiveFunctionType)
     Sol = rm.returnRegions()
-    print "initial Solution: ", Sol
-    print "initial O.F: ", rm.objInfo
+    print("initial Solution: ", Sol)
+    print("initial O.F: ", rm.objInfo)
 
     # LOCAL SEARCH
 
-    print "Performing local search"
+    print("Performing local search")
     rm.reactiveTabuMove(convTabu)
     time = tm.time() - start
     Sol = rm.returnRegions()
     Of = rm.objInfo
-    print "FINAL SOLUTION: ", Sol
-    print "FINAL OF: ", Of
+    print("FINAL SOLUTION: ", Sol)
+    print("FINAL OF: ", Of)
     output = { "objectiveFunction": Of,
     "runningTime": time,
     "algorithm": "azpRtabu",
@@ -127,6 +127,6 @@ def execAZPRTabu(y, w, pRegions, initialSolution=[], convTabu=0):
     "distanceType": distanceType,
     "distanceStat": distanceStat,
     "selectionType": selectionType,
-    "ObjectiveFuncionType": objectiveFunctionType} 
-    print "Done"
+    "ObjectiveFuncionType": objectiveFunctionType}
+    print("Done")
     return output

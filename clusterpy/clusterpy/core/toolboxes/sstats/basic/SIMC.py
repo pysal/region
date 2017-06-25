@@ -11,7 +11,7 @@ __email__ = "contacto@rise-group.org"
 
 import numpy
 import time as tm
-from componentsESDA import absDifference
+from .componentsESDA import absDifference
 
 __all__ = ['similarityCoef']
 
@@ -19,19 +19,19 @@ def similarityCoef(*args):
     """Similarity Coefficient
     This function creates a dictionary with the similarity coefficient
     of layer.
-    
-    the similarity coefficient cualify with a number between 0 and 1 
+
+    the similarity coefficient cualify with a number between 0 and 1
     the simulitude between layers areas.
-    
-    I{Parameters shown below are modified to explain how to calculate the 
+
+    I{Parameters shown below are modified to explain how to calculate the
     similarity coeficient for a layer object.
     As example:}
-    
+
     @type algorithm: string
-    @keyword algorithm: "SIMC" 
+    @keyword algorithm: "SIMC"
 
     @type variables: names tuple
-    @keyword variables: Variables names used to calculate de differences 
+    @keyword variables: Variables names used to calculate de differences
 
     @rtype: tuple
     @return: (coefficients dictionary,coeficients list of lists)
@@ -56,7 +56,7 @@ def similarityCoef(*args):
         simc[(i, i)] = 0
         simcw[i][i] = 0
         while j < nAreas:
-            var1 = data[i] 
+            var1 = data[i]
             var2 = data[j]
             simc[(i, j)] = absDifference(var1, var2)
             simc[(j, i)] = simc[(i, j)]
@@ -64,6 +64,5 @@ def similarityCoef(*args):
             simcw[j][i] = simc[(i, j)]
             j = j + 1
         i = i + 1
-    print "SIMC has been succesfuly calculed"
+    print("SIMC has been succesfuly calculed")
     return simc, simcw
-

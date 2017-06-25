@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 __all__ = ['generateSMA']
 
 import numpy
-from componentsData import wToMatrix
+from .componentsData import wToMatrix
 
 def generateSMA(w, n, rho):
     """
@@ -23,7 +23,7 @@ def generateSMA(w, n, rho):
     :type n: integer
     :param rho: rho parameter for the process
     :type rho: float
-    :rtype: dictionary (generated data) 
+    :rtype: dictionary (generated data)
 
     **Examples**
 
@@ -46,9 +46,6 @@ def generateSMA(w, n, rho):
     CVCV = numpy.linalg.cholesky(VCV)
     matData = numpy.dot(CVCV, numpy.random.randn(dim, n))
     y = {}
-    for i in xrange(dim):
+    for i in range(dim):
         y[i] = matData[i].tolist()[0]
     return y
-
-
-

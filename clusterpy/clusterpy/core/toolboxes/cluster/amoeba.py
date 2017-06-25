@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 
 import time as tm
 import numpy
-from componentsAlg import calculateGetisG,quickSort2,neighborSort 
+from .componentsAlg import calculateGetisG,quickSort2,neighborSort
 
 __all__ = ['execAMOEBA']
 
@@ -27,7 +27,7 @@ def execAMOEBA(y, w, significance=0.01):
     increase the magnitude of the local Getis statistic of [Getis_Ord1992]_
     and [Ord_Getis1995]_. The resulting region is considered an ecotope. This
     procedure is executed for all areas, and final ecotopes are defined after
-    resolving overlaps and asserting non-randomness. 
+    resolving overlaps and asserting non-randomness.
 
 
     The algorithm implemented here is a new version of AMOEBA proposed by
@@ -36,15 +36,15 @@ def execAMOEBA(y, w, significance=0.01):
 
         layer.cluster('amoeba',vars,<wType>,<significance>)
 
-    :keyword vars: Area attribute(s) 
+    :keyword vars: Area attribute(s)
     :type vars: sist
-    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
     :type wType: string
     :keyword significance: Level of statistical significance. Default value
     :type significance: float (significance=0.01)
 
-    IMPORTANT NOTE: 
-    
+    IMPORTANT NOTE:
+
     Since AMEOBA is a non-exhausive algorithm, clusterPy does not provide the
     dissolve option. to obtain the solution vector you will need to export the
     layer with the command "Layer.exportArcData". The exported shape file will
@@ -54,17 +54,17 @@ def execAMOEBA(y, w, significance=0.01):
     the clusters.
     """
     start = tm.time()
-    print "Running computationally efficient AMOEBA (Duque et al., 2010)"
-    print "Number of areas: ", len(y)
+    print("Running computationally efficient AMOEBA (Duque et al., 2010)")
+    print("Number of areas: ", len(y))
     NumberOfClusters = 0
-    areaKeys = y.keys() 
-    dataMean = numpy.mean(numpy.double(y.values()))
-    dataStd = numpy.std(numpy.double(y.values()))
+    areaKeys = list(y.keys())
+    dataMean = numpy.mean(numpy.double(list(y.values())))
+    dataStd = numpy.std(numpy.double(list(y.values())))
     dataLength = len(y)
     generatedClusters = dict()
     clusterGValues = dict()
     clusterGValuesAbs = dict()
-    print "Starting iterative process"
+    print("Starting iterative process")
     for s in areaKeys:
         discNeighbor = []
         if s in w:
@@ -107,10 +107,10 @@ def execAMOEBA(y, w, significance=0.01):
     output = {}
     clusterMap = {}
     mapCounter = 0
-    areaRange = range(dataLength)    
+    areaRange = list(range(dataLength))
     randomKeyList = []
     clusterCounter = 0
-    print "Testing clusters significance"
+    print("Testing clusters significance")
     for i in range(1000):
         randomKeyListInstance = []
         randomList = numpy.random.permutation(areaRange)
@@ -158,7 +158,7 @@ def execAMOEBA(y, w, significance=0.01):
                     else:
                         output[h] = clustId
                 clusterCounter=clusterCounter + 1
-    Sol = output.values()
+    Sol = list(output.values())
     Of = 0
     time = tm.time() - start
     output = { "objectiveFunction": Of,
@@ -169,10 +169,10 @@ def execAMOEBA(y, w, significance=0.01):
     "distanceType": None,
     "distanceStat": None,
     "selectionType": None,
-    "ObjectiveFuncionType": None} 
-    print "FINAL SOLUTION: " + str(Sol)
-    print ">= 1  : cluster of high values"
-    print "== 0  : outside of cluster"
-    print "<= -1 : cluster of low values"
-    print "Done"
+    "ObjectiveFuncionType": None}
+    print("FINAL SOLUTION: " + str(Sol))
+    print(">= 1  : cluster of high values")
+    print("== 0  : outside of cluster")
+    print("<= -1 : cluster of low values")
+    print("Done")
     return output
