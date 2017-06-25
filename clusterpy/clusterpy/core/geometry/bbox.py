@@ -14,7 +14,7 @@ __all__ = ['getBbox']
 def getBbox(layer):
     """
     Finds the layer's bounding box
-    
+
     :param layer: object layer
     :type layer: Layer
 

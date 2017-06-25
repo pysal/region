@@ -10,7 +10,7 @@ __version__ = "1.0.0"
 __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
-from distanceFunctions import distMethods
+from .distanceFunctions import distMethods
 import numpy as np
 
 def getObjectiveFunctionSumSquares(regionMaker,
@@ -20,7 +20,7 @@ def getObjectiveFunctionSumSquares(regionMaker,
     Sum of squares from each area to the region's centroid
     """
     objDict = {}
-    for region in region2AreaDict.keys():
+    for region in list(region2AreaDict.keys()):
         objDict[region] = 0.0
         areasIdsIn = region2AreaDict[region]
         areasInNow = [regionMaker.areas[aID] for aID in areasIdsIn]
@@ -44,7 +44,7 @@ def getObjectiveFunctionSumSquaresFast(regionMaker,
     Sum of squares from each area to the region's centroid
     """
     obj = 0.0
-    r2aDictKeys = region2AreaDict.keys()
+    r2aDictKeys = list(region2AreaDict.keys())
     for region in r2aDictKeys:
         if region in modifiedRegions:
             valRegion = 0.0
@@ -52,7 +52,7 @@ def getObjectiveFunctionSumSquaresFast(regionMaker,
             key = areasIdsIn
             key.sort()
             key = tuple(key)
-            if cachedObj.has_key(key):
+            if key in cachedObj:
                 valRegion = cachedObj[key]
             else:
                 areasInNow = [regionMaker.areas[_aid] for _aid in areasIdsIn]
@@ -80,14 +80,14 @@ def getObjectiveFunctionClique(regionMaker, *args):
     in a region (Clique).
     """
     ofuncval = 0.0
-    for region in regionMaker.region2Area.values():
+    for region in list(regionMaker.region2Area.values()):
         size = len(region)
         distmatrix = np.zeros((size, size))
 
-        for iti in xrange(size):
+        for iti in range(size):
             areaid = region[iti]
             areai = np.array(regionMaker.areas[areaid].data)
-            for itj in xrange(size):
+            for itj in range(size):
                 if iti < itj:
                     areaid = region[itj]
                     areaj = np.array(regionMaker.areas[areaid].data)
@@ -107,10 +107,10 @@ def makeObjDict(regionMaker, indexData=[]):
     """
     objDict = {}
     if len(regionMaker.indexDataOF) == 0:
-        indexData = range(len(regionMaker.areas[0].data))
+        indexData = list(range(len(regionMaker.areas[0].data)))
     else:
         indexData = regionMaker.indexDataOF
-    for region in regionMaker.region2Area.keys():
+    for region in list(regionMaker.region2Area.keys()):
         objDict[region] = 0.0
         areasIdsIn = regionMaker.region2Area[region]
         areasInNow = [regionMaker.areas[aID] for aID in areasIdsIn]

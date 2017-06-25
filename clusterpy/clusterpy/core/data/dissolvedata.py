@@ -23,8 +23,8 @@ def dissolveData(fieldnames, Y, region, X):
     >>> X[variableName1] = [function1, function2,....]
     >>> X[variableName2] = [function1, function2,....]
 
-    Where functions are string which represents the name of the 
-    functions to be used on the given variableNames, functions 
+    Where functions are string which represents the name of the
+    functions to be used on the given variableNames, functions
     could be,'sum','mean','min','max','meanDesv','stdDesv','med',
     'mode','range','first','last','numberOfAreas. The algorithm
     also receives a list of variablesNames (fieldnames).
@@ -34,19 +34,19 @@ def dissolveData(fieldnames, Y, region, X):
     :param region: regions2area list
     :type region: list
     :param X: Functions to be used for a specif variable
-    :type X: dictionary 
+    :type X: dictionary
     :param fieldnames: Variable names of data dictionary.
-    :type fieldnames: list 
+    :type fieldnames: list
     :rtype: tuple (newData(Dictionary of new variables),newFieldNames(newVariables names))
     """
     i = 2
-    filter1 = [] 
-    filter2 = [] 
+    filter1 = []
+    filter2 = []
     j = 0
     count = 0
-    fields = [] 
+    fields = []
     for i in range(0, len(fieldnames)):
-        if X.has_key(fieldnames[i]):
+        if fieldnames[i] in X:
             fields.append(i)
     i = 0
     k = 0
@@ -74,12 +74,12 @@ def dissolveData(fieldnames, Y, region, X):
     for i in range(len(filter2)):
         k = 0
         auxiliar1 = []
-        for k in range(len(X.keys())):
+        for k in range(len(list(X.keys()))):
             j = k
             variables = []
-            while j <= len(filter2[i]) - len(X.keys()) + k:
+            while j <= len(filter2[i]) - len(list(X.keys())) + k:
                 variables.append(filter2[i][j])
-                j += len(X.keys())
+                j += len(list(X.keys()))
             auxiliar1.append(variables)
         auxiliar2.append(auxiliar1)
     l = 0
@@ -87,46 +87,46 @@ def dissolveData(fieldnames, Y, region, X):
     tempNewY =[]
     newFieldNames = []
     newFieldNames.append('ID')
-    for l in range(len(X.keys())):
+    for l in range(len(list(X.keys()))):
         m = 0
-        for m in range (len(X[X.keys()[l]])):
-            operation = X[X.keys()[l]][m]
+        for m in range (len(X[list(X.keys())[l]])):
+            operation = X[list(X.keys())[l]][m]
             if operation == 'sum':
-                tempNewY.append(sumLists(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Sum')
+                tempNewY.append(sumLists(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Sum')
             elif operation == 'mean':
-                tempNewY.append(meanLists(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Mean')
+                tempNewY.append(meanLists(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Mean')
             elif operation == 'min':
-                tempNewY.append(minimum(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Min')
+                tempNewY.append(minimum(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Min')
             elif operation == 'max':
-                tempNewY.append(maximum(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Max')
+                tempNewY.append(maximum(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Max')
             elif operation == 'meanDesv':
-                tempNewY.append(meanDesv(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_MeanDesv')
+                tempNewY.append(meanDesv(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_MeanDesv')
             elif operation == 'stdDesv':
-                tempNewY.append(stdDesv(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_StdDesv')
+                tempNewY.append(stdDesv(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_StdDesv')
             elif operation == 'med':
-                tempNewY.append(median(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Med')
+                tempNewY.append(median(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Med')
             elif operation == 'mode':
-                tempNewY.append(mode(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Mode')
+                tempNewY.append(mode(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Mode')
             elif operation == 'range':
-                tempNewY.append(rangeRegion(auxiliar2, fields.index(fieldnames.index(X.keys()[l]))))
-                newFieldNames.append(X.keys()[l] + '_Range')
+                tempNewY.append(rangeRegion(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l]))))
+                newFieldNames.append(list(X.keys())[l] + '_Range')
             elif operation == 'first':
-                tempNewY.append(findFirstLast(auxiliar2, fields.index(fieldnames.index(X.keys()[l])), 'first'))
-                newFieldNames.append(X.keys()[l] + '_First')
+                tempNewY.append(findFirstLast(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l])), 'first'))
+                newFieldNames.append(list(X.keys())[l] + '_First')
             elif operation == 'last':
-                tempNewY.append(findFirstLast(auxiliar2, fields.index(fieldnames.index(X.keys()[l])), 'last'))
-                newFieldNames.append(X.keys()[l] + '_Last')
+                tempNewY.append(findFirstLast(auxiliar2, fields.index(fieldnames.index(list(X.keys())[l])), 'last'))
+                newFieldNames.append(list(X.keys())[l] + '_Last')
             elif operation == 'numberOfAreas':
                 tempNewY.append(numberAreas(region))
-                newFieldNames.append(X.keys()[l] + '_AreasPerRegion')
+                newFieldNames.append(list(X.keys())[l] + '_AreasPerRegion')
             else :
                 raise NameError("The selected operation (%s) is not defined" % operation)
     i = 0
@@ -148,11 +148,11 @@ def dissolveData(fieldnames, Y, region, X):
 def sumLists(alist, number):
     """
     This function returns the sums of values in a specified index (number)
-    in each sublist. 
-    
+    in each sublist.
+
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be summed 
+    :param number: The index that represents what element of each sublist should be summed
     :type number: integer
     :rtype: list (sums of values of each region).
     """
@@ -171,8 +171,8 @@ def sumLists(alist, number):
 def meanLists(alist, number):
     """
     This function returns the mean of values in a specified index (number)
-    in each sublist. 
-    
+    in each sublist.
+
     :param alist: Data list
     :type alist: list
     :param number: The index that represents what element of each sublist should be taken into account when calculating the mean.
@@ -193,15 +193,15 @@ def meanLists(alist, number):
         mean = (float)(sum1)/len(alist[i][number])
         results.append(mean)
     return results
-    
+
 def mode(alist, number):
     """
     This function returns the mode of the values in a specified index (number)
-    in each sublist. 
+    in each sublist.
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when calculating the mode 
+    :param number: The index that represents what element of each sublist should be taken into account when calculating the mode
     :type number: integer
     :rtype: list (mode of values of each region).
     """
@@ -243,15 +243,15 @@ def mode(alist, number):
         return results
     else :
         return '--'
-	
+
 def minimum(alist, number):
     """
     This function returns the minimum of the values in a specified index (number)
-    in each sublist. 
+    in each sublist.
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when getting the minimum 
+    :param number: The index that represents what element of each sublist should be taken into account when getting the minimum
     :type number: integer
     :rtype: list (Minimum of values of each region).
     """
@@ -270,11 +270,11 @@ def minimum(alist, number):
 def median(alist, number):
     """
     This function returns the median of the values in a specified index (number)
-    in each sublist. 
+    in each sublist.
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when calculating the median 
+    :param number: The index that represents what element of each sublist should be taken into account when calculating the median
     :type number: integer
     :rtype: list (Median of values of each region).
     """
@@ -295,7 +295,7 @@ def median(alist, number):
             median = (int)(temp[len(temp) / 2])
         results.append(median)
     return results
-    
+
 def maximum(alist, number):
     """
     This function returns the maximum of the values in a specified index (number)
@@ -303,7 +303,7 @@ def maximum(alist, number):
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when getting the maximum 
+    :param number: The index that represents what element of each sublist should be taken into account when getting the maximum
     :type number: int
     :rtype: list (Median of values of each region)
     """
@@ -318,7 +318,7 @@ def maximum(alist, number):
             temp.append(alist[i][number][j])
         results.append(max(temp))
     return results
-    
+
 def stdDesv(alist, number):
     """
     This function returns the standard deviation of the values
@@ -326,7 +326,7 @@ def stdDesv(alist, number):
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when calculating the standard deviation 
+    :param number: The index that represents what element of each sublist should be taken into account when calculating the standard deviation
     :type number: int
     :rtype: list (Standard deviation of values of each region).
     """
@@ -350,7 +350,7 @@ def meanDesv(alist, number) :
 
     :param alist: Data list
     :type alist: list
-    :param number: The index that represents what element of each sublist should be taken into account when calculating the mean deviation 
+    :param number: The index that represents what element of each sublist should be taken into account when calculating the mean deviation
     :type number: int
     :rtype: list (Mean deviation of values of each region)
     """
@@ -393,10 +393,10 @@ def numberAreas(region):
                 areasRegion.append(count1 + 1)
         i += 1
     return areasRegion
-    
+
 def findFirstLast(alist, number, position):
     """
-    This funcion finds the first or the last value (position) of a list 
+    This funcion finds the first or the last value (position) of a list
     in the given index(number) depending on the user's choice.
 
     :param alist: Data list
@@ -431,8 +431,8 @@ def findFirstLast(alist, number, position):
 
 def rangeRegion(alist, number):
     """
-    This function calculates the difference between the maximum and 
-    minimum values of a variable for each region. 
+    This function calculates the difference between the maximum and
+    minimum values of a variable for each region.
 
     :param alist: Data list
     :type alist: list

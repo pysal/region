@@ -10,28 +10,28 @@ __email__ = "contacto@rise-group.org"
 
 __all__ = ['inequalityDynamic']
 
-from theilIndex import theil 
+from .theilIndex import theil
 import numpy
 import itertools
 
 def interregionalInequalityDifferences(Y, fieldNames, area2regions,
             area2regionsNames, outFile="", permutations=9999):
-    """Interregional inequality differences 
+    """Interregional inequality differences
 
     This function examines whether the differences across a set of clustering
     solutions are significant. For more information on this function see
     [Rey_Sastre2010] (this function recreates Table 6 in that paper).
-    
+
         Layer.inequality('interregionalInequalityDifferences', var, clusters, outFile="", <permutations>)
 
-    :keyword var: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981'] 
+    :keyword var: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981']
     :type var: list
     :keyword clusters: variables in Layer containing regionalization schemes e.g.: ["arisel1", "arisel2", "arisel3", "BELS"]
-    :type clusters: list 
+    :type clusters: list
     :keyword outFile: Name for the output file; e.g.: "regionsDifferenceTest.csv"
-    :type outFile: string 
+    :type outFile: string
     :keyword permutations: Number of random spatial permutations. Default value permutations = 9999.
-    :type permutations: integer 
+    :type permutations: integer
 
 
     **Example 1** ::
@@ -45,14 +45,14 @@ def interregionalInequalityDifferences(Y, fieldNames, area2regions,
         result = {}
         for k in Y:
             result[k] = [Y[k][possition]]
-        return result    
-    
+        return result
+
     def shuffleMap(Y):
-        values = Y.values()
+        values = list(Y.values())
         numpy.random.shuffle(values)
-        keys = Y.keys()
-        newY = dict(zip(keys,values))
-        return newY    
+        keys = list(Y.keys())
+        newY = dict(list(zip(keys,values)))
+        return newY
 
     results = {}
     for nv1, v1 in enumerate(fieldNames):
@@ -92,6 +92,6 @@ def interregionalInequalityDifferences(Y, fieldNames, area2regions,
                 line = line.replace("]","")
                 line = line.replace("'","")
                 fout.write("".join([line,"\n"]))
-            fout.write("\n")    
-        fout.close()        
+            fout.write("\n")
+        fout.close()
     return None

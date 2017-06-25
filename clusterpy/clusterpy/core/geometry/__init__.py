@@ -9,9 +9,9 @@ __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 __all__ = ['dissolveLayer','transportLayer','exportLayer','getBbox','getGeometricAreas','getCentroids']
 
-from areas import getGeometricAreas
-from bbox import getBbox
-from centroids import getCentroids
-from dissolve import dissolveLayer
-from expand import expandLayer
-from transport import transportLayer
+from .areas import getGeometricAreas
+from .bbox import getBbox
+from .centroids import getCentroids
+from .dissolve import dissolveLayer
+from .expand import expandLayer
+from .transport import transportLayer

@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 
 __all__ = ['inequalityMultivar']
 
-from theilIndex import theil 
+from .theilIndex import theil
 
 import numpy
 
@@ -21,15 +21,15 @@ def inequalityMultivar(Y, area2region, index = 'theil'):
 
         Layer.inequality('inequalityMultivar',vars, cluster, <index>)
 
-    :keyword vars: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981'] 
+    :keyword vars: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981']
     :type vars: list
     :keyword cluster: variable in Layer containing regionalization solution; e.g.: 'BELS'
     :type cluster: string
-    :keyword index: inequality index to be applied. Default value index = 'theil'. 
+    :keyword index: inequality index to be applied. Default value index = 'theil'.
     :type index: string
 
     :rtype: Tuple
-    :return: index, index between groups, index within groups, index whitin groups over index 
+    :return: index, index between groups, index within groups, index whitin groups over index
 
 
     **Example 1** ::
@@ -39,16 +39,16 @@ def inequalityMultivar(Y, area2region, index = 'theil'):
         result = instance.inequality('inequality',['Y1978', 'Y1979', 'Y1980', 'Y1981'], 'BELS', index = 'theil')
 
     """
-    matrix = numpy.matrix(Y.values()).transpose()
+    matrix = numpy.matrix(list(Y.values())).transpose()
     periods = [x.tolist()[0] for x in matrix]
-    areas = Y.keys()
+    areas = list(Y.keys())
     t = []
     tb = []
     tw = []
     tw_t = []
     for var in periods:
         var = [[x] for x in var]
-        dictionary = dict(zip(areas,var))
+        dictionary = dict(list(zip(areas,var)))
         if index == 'theil':
             t2,tb2,tw2 = theil(dictionary,area2region)
             tw_t2 = tw2/float(t2)
@@ -58,6 +58,4 @@ def inequalityMultivar(Y, area2region, index = 'theil'):
         tb.append(tb2)
         tw.append(tw2)
         tw_t.append(tw_t2)
-    return t,tb,tw,tw_t    
-        
-
+    return t,tb,tw,tw_t

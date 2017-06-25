@@ -10,14 +10,14 @@ from clusterpy.core.toolboxes.cluster.componentsAlg import AreaManager
 class TestAreaManager(TestCase):
     def setUp(self):
 
-        self.Y = {i:[pi*i] for i in xrange(8)}
+        self.Y = {i:[pi*i] for i in range(8)}
 
         """
         Simple map of 6 Areas.
 
         0123
         4567
-        """        
+        """
         self.Wrook = {0:[1, 4],
                       1:[0, 2, 5],
                       2:[1, 3, 6],

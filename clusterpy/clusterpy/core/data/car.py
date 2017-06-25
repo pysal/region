@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 __all__ = ['generateCAR']
 
 import numpy
-from componentsData import wToMatrix
+from .componentsData import wToMatrix
 
 def generateCAR(w, n, rho):
     """
@@ -26,14 +26,14 @@ def generateCAR(w, n, rho):
 
     **Examples**
 
-    Generating a float CAR variable for China with an autoregressive coefficient of 0.7 
-    
+    Generating a float CAR variable for China with an autoregressive coefficient of 0.7
+
     >>> import clusterpy
     >>> china = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> china.generateData("CAR", 'queen', 1, 0.7)
 
-    Generating an integer CAR variable for China with an autoregressive coefficient of 0.7 
-    
+    Generating an integer CAR variable for China with an autoregressive coefficient of 0.7
+
     >>> import clusterpy
     >>> china = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> china.generateData("CAR", 'queen', 1, 0.7, integer=1)
@@ -45,6 +45,6 @@ def generateCAR(w, n, rho):
     CVCV = numpy.linalg.cholesky(VCV)
     matData = numpy.dot(CVCV, numpy.random.randn(dim, n))
     y = {}
-    for i in xrange(dim):
+    for i in range(dim):
         y[i] = matData[i].tolist()[0]
     return y

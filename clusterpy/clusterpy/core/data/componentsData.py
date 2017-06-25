@@ -11,17 +11,16 @@ __all__ = ['wToMatrix']
 
 import numpy
 
-def wToMatrix(w): 
+def wToMatrix(w):
     """Obtain sparse matrix representation of contiguity dictionary (W)
-    
-    :param w: contiguity dictionary 
+
+    :param w: contiguity dictionary
     :type w: dictionary
     :rtype: numpy.matrix (sparse contiguity matrix)
      """
     wMatrix = numpy.zeros((len(w), len(w)))
-    for i in w.keys():
+    for i in list(w.keys()):
         weight = 1.0 / len(w[i])
         for j in w[i]:
             wMatrix[i, j] = weight
     return numpy.matrix(wMatrix)
-

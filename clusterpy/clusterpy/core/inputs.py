@@ -11,12 +11,12 @@ __all__ = ['new','load','importArcData','createPoints','createHexagonalGrid',
            'createGrid','importDBF','importCSV','importShape','importGWT']
 
 import struct
-import cPickle
+import pickle
 import re
-from contiguity import weightsFromAreas, fixIntersections
-from layer import Layer
+from .contiguity import weightsFromAreas, fixIntersections
+from .layer import Layer
 try:
-    from toolboxes import rimap as rim
+    from .toolboxes import rimap as rim
     __all__ += ['rimap']
 except:
     pass
@@ -39,9 +39,9 @@ def rimap(n, N = 30, alpha = [0.01,0.3], sigma = [1.1,1.4], dt = 0.1,
             pg = 0.01, pu = 0.05, su = 0.315, boundary = ""):
     """Creates an irregular maps
 
-        :param n: number of areas 
+        :param n: number of areas
         :type n: integer
-        :param N: number of points sampled from each irregular polygon (MR-Polygon) 
+        :param N: number of points sampled from each irregular polygon (MR-Polygon)
         :type N: integer
         :param alpha: min and max value to sampled alpha; default is (0.1,0.5)
         :type alpha: List
@@ -59,7 +59,7 @@ def rimap(n, N = 30, alpha = [0.01,0.3], sigma = [1.1,1.4], dt = 0.1,
         :type boundary: Layer
 
         :rtype: Layer
-        :return: RI-Map instance 
+        :return: RI-Map instance
 
         **Examples** ::
 
@@ -100,24 +100,24 @@ def new():
         lay = clusterpy.new()
 
     """
-    print "Creating new layer"
+    print("Creating new layer")
     layer = Layer()
-    print "Done"
+    print("Done")
     return layer
 
 def load(filename):
     """Load a ClusterPy project (<file>.CP)
-    
-    :param filename: filename without extension 
+
+    :param filename: filename without extension
     :type filename: string
     :rtype: Layer
-    :return: CP project 
+    :return: CP project
 
     **Description**
 
-    With clusterPy you can save your layer objects on a .cp file, 
+    With clusterPy you can save your layer objects on a .cp file,
     which can be reopened in the future using this function.
-    
+
     **Examples** ::
 
         import clusterpy
@@ -125,17 +125,17 @@ def load(filename):
         lay.save("lay")
         layer = clusterpy.load("lay")
     """
-    print "Loading cp project"
-    f = open(filename + '.cp', 'r') 
-    layer = cPickle.load(f)
+    print("Loading cp project")
+    f = open(filename + '.cp', 'r')
+    layer = pickle.load(f)
     f.close()
-    print "Done"
+    print("Done")
     return layer
 
 def importArcData(filename):
     """Creates a new Layer from a shapefile (<file>.shp)
-    
-    :param filename: filename without extension 
+
+    :param filename: filename without extension
     :type filename: string
     :rtype: Layer (CP project)
 
@@ -156,18 +156,18 @@ def importArcData(filename):
     """
     layer = Layer()
     layer.name = filename.split('/')[-1]
-    print "Loading " + filename + ".dbf"
+    print("Loading " + filename + ".dbf")
     data, fields, specs = importDBF(filename + '.dbf')
-    print "Loading " + filename + ".shp"
+    print("Loading " + filename + ".shp")
     if fields[0] != "ID":
         fields = ["ID"] + fields
-        for y in data.keys():
+        for y in list(data.keys()):
             data[y] = [y] + data[y]
     layer.fieldNames = fields
     layer.Y = data
     layer.areas, layer.Wqueen, layer.Wrook, layer.shpType = importShape(filename + '.shp')
     layer._defBbox()
-    print "Done"
+    print("Done")
     return layer
 
 def createPoints(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
@@ -178,22 +178,22 @@ def createPoints(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
     :param nCols: number of cols
     :type nCols: integer
     :param lowerLeft: lower-left corner coordinates; default is (0,0)
-    :type lowerLeft: tuple or none 
+    :type lowerLeft: tuple or none
     :param upperRight: upper-right corner coordinates; default is (100,100)
     :type upperRight: tuple or none
     :rtype: Layer (new points layer)
 
     **Description**
 
-    The example below shows how to create a point-based regular grids with clusterPy. 
-    
+    The example below shows how to create a point-based regular grids with clusterPy.
+
     **Examples**
-    
+
     Creating a grid of ten by ten points.::
 
         import clusterpy
         points = clusterpy.createPoints(10, 10)
-    
+
 
 
     Creating a grid of ten by ten points on the bounding box (0,0,100,100). ::
@@ -202,7 +202,7 @@ def createPoints(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
         points = clusterpy.createPoints(10, 10, lowerLeft=(0, 0), upperRight=(100, 100))
 
     """
-    print "Creating points"
+    print("Creating points")
     yMin = lowerLeft[1]
     yMax = upperRight[1]
     xMin = lowerLeft[0]
@@ -239,39 +239,39 @@ def createPoints(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
     layer.shpType = 'point'
     layer.name = 'root'
     layer._defBbox()
-    print "Done"
+    print("Done")
     return layer
 
 def createHexagonalGrid(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
     """Creates a new Layer with a hexagonal regular lattice
-    
+
     :param nRows: number of rows
     :type nRows: integer
     :param nCols: number of columns
     :type nCols: integer
-    :type lowerLeft: tuple or none, lower-left corner coordinates; default is (0,0) 
+    :type lowerLeft: tuple or none, lower-left corner coordinates; default is (0,0)
     :type upperRight: tuple or none, upper-right corner coordinates; default is (100,100)
-    :rtype: Layer new lattice 
+    :rtype: Layer new lattice
 
     **Description**
 
     Regular lattices are widely used in both theoretical and empirical
-    applications in Regional Science. The example below shows how easy 
+    applications in Regional Science. The example below shows how easy
     the creation of this kind of maps is using clusterPy.
-    
+
     **Examples**
 
     Create a grid of ten by ten points.::
 
         import clusterpy
         points = clusterpy.createGrid(10,10)
-    
+
     Create a grid of ten by ten points on the bounding box (0,0,100,100).::
 
         import clusterpy
         points = clusterpy.createGrid(10, 10, lowerLeft=(0, 0), upperRight=(100, 100))
     """
-    print "Creating grid"
+    print("Creating grid")
     rowHeight = (upperRight[1] - lowerLeft[1])/float(nRows)
     colStep = rowHeight/float(2)
     N = nRows*nCols
@@ -308,26 +308,26 @@ def createHexagonalGrid(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
     layer.shpType = 'polygon'
     layer.name = 'root'
     layer._defBbox()
-    print "Done"
+    print("Done")
     return layer
 
 def createGrid(nRows, nCols, lowerLeft=None, upperRight=None):
     """Creates a new Layer with a regular lattice
-    
+
     :param nRows: number of rows
     :type nRows: integer
     :param nCols: number of columns
     :type nCols: integer
-    :type lowerLeft: tuple or none, lower-left corner coordinates; default is (0,0) 
+    :type lowerLeft: tuple or none, lower-left corner coordinates; default is (0,0)
     :type upperRight: tuple or none, upper-right corner coordinates; default is (100,100)
-    :rtype: Layer new lattice 
+    :rtype: Layer new lattice
 
     **Description**
 
     Regular lattices are widely used in both theoretical and empirical
-    applications in Regional Science. The example below shows how easy 
+    applications in Regional Science. The example below shows how easy
     the creation of this kind of maps is using clusterPy.
-    
+
     **Examples**
 
     Create a grid of ten by ten points.::
@@ -340,7 +340,7 @@ def createGrid(nRows, nCols, lowerLeft=None, upperRight=None):
         import clusterpy
         points = clusterpy.createGrid(10, 10, lowerLeft=(0, 0), upperRight=(100, 100))
     """
-    print "Creating grid"
+    print("Creating grid")
     if lowerLeft != None and upperRight != None:
         ymin = lowerLeft[1]
         ymax = upperRight[1]
@@ -388,7 +388,7 @@ def createGrid(nRows, nCols, lowerLeft=None, upperRight=None):
                 nxPoints * i + nxPoints - 2, nxPoints * i + 2 * nxPoints - 1,
                 nxPoints * i + 2 * nxPoints - 2]
         disAreas = disAreas + [i * nxPoints, nxPoints * i + nxPoints - 1]
-    disAreas = disAreas + range(1, nxPoints - 1) + range((N - nxPoints) + 1, N - 1)
+    disAreas = disAreas + list(range(1, nxPoints - 1)) + list(range((N - nxPoints) + 1, N - 1))
     for i in range(1, nxPoints - 1): # Asigning the neighborhood of the side Areas
         wr[i]=[i - 1, i + nxPoints, i + 1]
         wq[i]=[i - 1, i + nxPoints - 1, i + nxPoints, i + nxPoints + 1, i + 1]
@@ -428,13 +428,13 @@ def createGrid(nRows, nCols, lowerLeft=None, upperRight=None):
     layer.shpType = 'polygon'
     layer.name = 'root'
     layer._defBbox()
-    print "Done"
+    print("Done")
     return layer
 
 def importShape(shapefile):
     """Reads the geographic information stored in a shape file and returns
     them in python objects.
-    
+
     :param shapefile: path to shapefile including the extension ".shp"
     :type shapefile: string
     :rtype: tuple (coordinates(List), Wqueen(Dict), Wrook(Dict)).
@@ -464,7 +464,7 @@ def readShape(filename):
 
     :param filename: name of the file to be read
     :type filename: string
-    :rtype: tuple (information about the layer and areas coordinates). 
+    :rtype: tuple (information about the layer and areas coordinates).
     """
     fileObj=open(filename, 'rb')
     fileObj.seek(32, 1)
@@ -497,11 +497,11 @@ def readPoints(bodyBytes):
     bb5 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb6 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb7 = struct.unpack('>d', bodyBytes.read(8))[0]
-    while bodyBytes.read(1) <> "":
+    while bodyBytes.read(1) != "":
         bodyBytes.seek(11, 1)
         x = struct.unpack('<d', bodyBytes.read(8))[0]
         y = struct.unpack('<d', bodyBytes.read(8))[0]
-        area = [x, y] 
+        area = [x, y]
         AREAS = AREAS + [[[tuple(area)]]]
     return INFO, AREAS
 
@@ -510,7 +510,7 @@ def readPolylines(bodyBytes):
 
     :param bodyBytes: bytes to be processed
     :type bodyBytes: string
-    :rtype: tuple (information about the layer and areas coordinates). 
+    :rtype: tuple (information about the layer and areas coordinates).
     """
     INFO = {}
     INFO['type'] = 3
@@ -525,7 +525,7 @@ def readPolylines(bodyBytes):
     bb5 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb6 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb7 = struct.unpack('>d', bodyBytes.read(8))[0]
-    while bodyBytes.read(1) <> "":
+    while bodyBytes.read(1) != "":
         bodyBytes.seek(7, 1)
         bodyBytes.seek(36, 1)
         nParts = struct.unpack('<i', bodyBytes.read(4))[0]
@@ -556,7 +556,7 @@ def readPolygons(bodyBytes):
 
     :param bodyBytes: bytes to be processed
     :type bodyBytes: string
-    :rtype: tuple (information about the layer and areas coordinates). 
+    :rtype: tuple (information about the layer and areas coordinates).
     """
     INFO = {}
     INFO['type'] = 5
@@ -572,7 +572,7 @@ def readPolygons(bodyBytes):
     bb5 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb6 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb7 = struct.unpack('>d', bodyBytes.read(8))[0]
-    while bodyBytes.read(1) <> "":# 100 bytes for header
+    while bodyBytes.read(1) != "":# 100 bytes for header
         area = []
         bodyBytes.seek(7, 1)
         bodyBytes.seek(36, 1)
@@ -583,7 +583,7 @@ def readPolygons(bodyBytes):
             parts += [struct.unpack('<i', bodyBytes.read(4))[0]]
         ring = []
         for i in range(numPoints):
-            if i in parts and i <> 0:
+            if i in parts and i != 0:
                 area.append(ring)
                 ring = []
                 x = struct.unpack('<d', bodyBytes.read(8))[0]
@@ -599,7 +599,7 @@ def readPolygons(bodyBytes):
 
 def importDBF(filename):
     """Get variables from a dbf file.
-    
+
     :param filename: name of the file (String) including ".dbf"
     :type filename: string
     :rtype: tuple (dbf file Data, fieldNames and fieldSpecs).
@@ -640,7 +640,7 @@ def importDBF(filename):
             dec = field[2]
             end = start + l + first
             value = record[start: end]
-            while value.find("  ") <> -1:
+            while value.find("  ") != -1:
                 value = value.replace("  ", " ")
             if value.startswith(" "):
                 value = value[1:]
@@ -658,7 +658,7 @@ def importDBF(filename):
 
 def importCSV(filename,header=True,delimiter=","):
     """Get variables from a csv file.
-    
+
     :param filename: name of the file (String)
     :type filename: string
     :param header: Boolean, which is True if the csv have headers.
@@ -702,11 +702,11 @@ def importCSV(filename,header=True,delimiter=","):
 
 def importGWT(filename,initialId=1):
     """Get the a neighborhood structure from a GWT file.
-    
+
     :param filename: name of the file (String)
     :type filename: string
     :param initialId: First id of the areas.
-    :type initialId: integer 
+    :type initialId: integer
 
     :rtype: contiguity dictionary.
 
@@ -727,11 +727,10 @@ def importGWT(filename,initialId=1):
         if items:
             id = int(items.group(1))
             neigh = int(items.group(2))
-            if w.has_key(id - initialId):
+            if id - initialId in w:
                 w[id - initialId].append(neigh - initialId)
             else:
                 w[id - initialId] = [neigh - initialId]
         else:
             raise NameError("File structure is not from a GWT file")
-    return w        
-
+    return w

@@ -9,8 +9,8 @@ __version__ = "1.0.0"
 __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
-from areacl import AreaCl
-from dist2Regions import distanceStatDispatcher
+from .areacl import AreaCl
+from .dist2Regions import distanceStatDispatcher
 
 class AreaManager:
     """
@@ -62,7 +62,7 @@ class AreaManager:
             a = AreaCl(key, neighbours, data, self.variance)
             self.areas[key] = a
         if len(self.noNeighs) > 0:
-            print "Disconnected areas neighs: ", list(self.noNeighs)
+            print("Disconnected areas neighs: ", list(self.noNeighs))
 
     def returnDistance2Area(self, area, otherArea):
         """
@@ -101,14 +101,14 @@ class AreaManager:
         """
         if isinstance(distanceStat, str):
             if len(indexData) == 0:
-                indexData = range(len(area.data))
+                indexData = list(range(len(area.data)))
             return self.distanceStatDispatcher[distanceStat](self, area, areaList, indexData)
         else:
             distance = 0.0
             i = 0
             for dS in distanceStat:
                 if len(indexData) == 0:
-                    indexDataDS = range(len(area.data))
+                    indexDataDS = list(range(len(area.data)))
                 else:
                     indexDataDS = indexData[i]
                 if len(weights) > 0:
@@ -159,4 +159,3 @@ class AreaManager:
                     feasible = 0
                     break
         return feasible
-

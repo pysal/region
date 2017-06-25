@@ -26,7 +26,7 @@ def minimumSelection(RegionMaker):
     minVal = 0.0
     values = []
     indicesMin = []
-    keys = RegionMaker.candidateInfo.keys()
+    keys = list(RegionMaker.candidateInfo.keys())
 
     if keys:
         #values = [ RegionMaker.candidateInfo[i] for i in keys ]
@@ -59,7 +59,7 @@ def fullRandom(RegionMaker):
     """
     Select and assign randomly an area
     """
-    keys = RegionMaker.candidateInfo.keys()
+    keys = list(RegionMaker.candidateInfo.keys())
     values = [ RegionMaker.candidateInfo[i] for i in keys ]
     if len(values) > 0:
         randomIndex = np.random.randint(0, len(values))

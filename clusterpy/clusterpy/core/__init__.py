@@ -8,6 +8,6 @@ __version__ = "1.0.0"
 __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
-from inputs import *
-from layer import Layer
-from contiguity import *
+from .inputs import *
+from .layer import Layer
+from .contiguity import *

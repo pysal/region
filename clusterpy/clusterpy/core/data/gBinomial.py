@@ -26,7 +26,7 @@ def generateGBinomial(w, n, num, prob):
     :type prob: float
     :rtype: dictionary (generated data)
 
-    **Example** 
+    **Example**
 
     Generating a Binomial process on China with the same parameters for all
     features
@@ -35,7 +35,7 @@ def generateGBinomial(w, n, num, prob):
     >>> china = clusterpy.importArcData("clusterpy/data_examples/china")
     >>> china.generateData("GBinomial", 'queen', 1, 10000, 0.5)
     """
-    N = len(w.keys())
+    N = len(list(w.keys()))
     y = {}
     for i in range(N):
         j = list(numpy.random.binomial(num, prob, n))

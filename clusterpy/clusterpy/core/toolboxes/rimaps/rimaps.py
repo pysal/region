@@ -1,4 +1,4 @@
-from mrpolygons import mrpolygon, scalePolygon, polarPolygon2cartesian, transportPolygonGeometry, transportPolygon
+from .mrpolygons import mrpolygon, scalePolygon, polarPolygon2cartesian, transportPolygonGeometry, transportPolygon
 import Polygon
 Polygon.setTolerance(1e-3)
 from Polygon import Polygon
@@ -28,9 +28,9 @@ class rimap():
     def __init__(self,n=3600,N=30,alpha=[0.1,0.5],sigma=[1.1,1.4],dt=0.1,pg=0.01,pu=0.05,su=0.315,boundary=""):
         """Creates an irregular maps
 
-        :param n: number of areas 
+        :param n: number of areas
         :type n: integer
-        :param N: number of points sampled from each irregular polygon (MR-Polygon) 
+        :param N: number of points sampled from each irregular polygon (MR-Polygon)
         :type N: integer
         :param alpha: min and max value to sampled alpha; default is (0.1,0.5)
         :type alpha: List
@@ -48,7 +48,7 @@ class rimap():
         :type boundary: Layer
 
         :rtype: Layer
-        :return: RI-Map instance 
+        :return: RI-Map instance
         """
         self.carteAreas = []
         self.carteExternal = []
@@ -69,7 +69,7 @@ class rimap():
         if boundary == "":
             a,r,sa,sr,X1,times = mrpolygon(alp,sig,self.mu,self.X_0,self.dt,self.N)
             sa,sr = scalePolygon(sa,sr,1000)
-            polygon = polarPolygon2cartesian(zip(sa,sr))
+            polygon = polarPolygon2cartesian(list(zip(sa,sr)))
         else:
             layer = boundary
             polygon = layer.areas[0][0]
@@ -85,7 +85,7 @@ class rimap():
             if a[-1] != a[0]:
                 a.append(a[0])
             self.carteAreas.append([a])
-        print "closing: " + str(len(self.carteAreas))
+        print("closing: " + str(len(self.carteAreas)))
 
     def postCorrectionDissolve(self,areas,nAreas):
         def deleteAreaFromW(areaId,newId,W):
@@ -102,15 +102,15 @@ class rimap():
             return W
         pos = 0
         Wrook, Wqueen = weightsFromAreas(areas)
-        aIds = filter(lambda x: len(Wrook[x])>0,Wrook.keys())
-        aIds0 = filter(lambda x: len(Wrook[x])==0,Wrook.keys())
+        aIds = [x for x in list(Wrook.keys()) if len(Wrook[x])>0]
+        aIds0 = [x for x in list(Wrook.keys()) if len(Wrook[x])==0]
         areas = [areas[x] for x in aIds]
         areas.sort(key = lambda x: len(x[0]))
         Wrook, Wqueen = weightsFromAreas(areas)
-        availableAreas = Wrook.keys()
+        availableAreas = list(Wrook.keys())
         end = False
         pos = availableAreas.pop(0)
-        id2pos = Wrook.keys()
+        id2pos = list(Wrook.keys())
         while len(areas) > nAreas and not end:
             area = areas[id2pos.index(pos)]
             if len(Wrook[pos]) > 0:
@@ -187,7 +187,7 @@ class rimap():
         while len(areas) < nAreas:
             end = False
             while not end:
-                areaOrder = range(0,len(areas))
+                areaOrder = list(range(0,len(areas)))
                 areaOrder.sort(key=lambda x: areas[x].area(),reverse=True)
                 na = areaOrder[0]
                 #na = numpy.random.randint(0,len(areas))
@@ -224,12 +224,12 @@ class rimap():
                     p1 = getPointInFace(faces[0],bbox)
                     if f1%2 == 0:
                         p2 = (p1[0],p1[1]+1)
-                    else:    
+                    else:
                         p2 = (p1[0]+1,p1[1])
                     p3 = getPointInFace(faces[1],bbox)
                     if f2%2 == 0:
                         p4 = (p3[0],p3[1]+1)
-                    else:    
+                    else:
                         p4 = (p3[0]+1,p3[1])
                     line = Polygon([p1,p2,p3,p4,p1])
                     inters = area & line
@@ -336,7 +336,7 @@ class rimap():
                         sig = numpy.random.uniform(self.sigma[0],self.sigma[1])
                         a,r,sa,sr,X1,times = mrpolygon(alp,sig,self.mu,self.X_0,self.dt,self.N)
                         sa,sr = scalePolygon(sa,sr,scale)
-                        polygoni = polarPolygon2cartesian(zip(sa,sr))
+                        polygoni = polarPolygon2cartesian(list(zip(sa,sr)))
                         polygoni = transportPolygon(polygoni, center, aPoint)
                         polygoni = Polygon(polygoni)
                         polygoni = polygoni - coveredArea

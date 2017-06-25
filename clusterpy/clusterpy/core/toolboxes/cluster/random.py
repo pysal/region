@@ -9,24 +9,24 @@ __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
 import time as tm
-from componentsAlg import AreaManager
-from componentsAlg import RegionMaker
+from .componentsAlg import AreaManager
+from .componentsAlg import RegionMaker
 
 __all__ = ['execRandom']
 
 def execRandom(y, w, regions):
     """Generate random regions
-    
+
     This algorithm aggregates, at random, a set of areas into a predefined
     number of spatially contiguous regions. ::
 
         layer.cluster('random',vars,regions,<wType>,<dissolve>,<dataOperations>)
 
-    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2']) 
+    :keyword vars: Area attribute(s) (e.g. ['SAR1','SAR2'])
     :type vars: list
-    :keyword regions: Number of regions 
+    :keyword regions: Number of regions
     :type regions: integer
-    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'. 
+    :keyword wType: Type of first-order contiguity-based spatial matrix: 'rook' or 'queen'. Default value wType = 'rook'.
     :type wType: string
     :keyword dissolve: If = 1, then you will get a "child" instance of the layer that contains the new regions. Default value = 0. Note:. Each child layer is saved in the attribute layer.results. The first algorithm that you run with dissolve=1 will have a child layer in layer.results[0]; the second algorithm that you run with dissolve=1 will be in layer.results[1], and so on. You can export a child as a shapefile with layer.result[<1,2,3..>].exportArcData('filename')
     :type dissolve: binary
@@ -39,20 +39,20 @@ def execRandom(y, w, regions):
     >>> X[variableName1] = [function1, function2,....]
     >>> X[variableName2] = [function1, function2,....]
 
-    Where functions are strings which represents the name of the 
-    functions to be used on the given variableName. Functions 
+    Where functions are strings which represents the name of the
+    functions to be used on the given variableName. Functions
     could be,'sum','mean','min','max','meanDesv','stdDesv','med',
     'mode','range','first','last','numberOfAreas. By default just
     ID variable is added to the dissolved map.
-      
+
     """
     if regions >= len(y):
         message = "\n WARNING: You are aggregating "+str(len(y))+" into"+\
         str(regions)+" regions!!. The number of regions must be an integer"+\
         " number lower than the number of areas being aggregated"
-        raise Exception, message 
+        raise Exception(message)
 
-    distanceType = "EuclideanSquared" 
+    distanceType = "EuclideanSquared"
     distanceStat = "Centroid"
     objectiveFunctionType = "SS"
     selectionType = "FullRandom"
@@ -61,7 +61,7 @@ def execRandom(y, w, regions):
 
     #  CONSTRUCTION
 
-    rm = RegionMaker(am, regions, 
+    rm = RegionMaker(am, regions,
                     distanceType = distanceType,
                     distanceStat = distanceStat,
                     selectionType = selectionType,
@@ -69,8 +69,8 @@ def execRandom(y, w, regions):
     time = tm.time() - start
     Sol = rm.returnRegions()
     Of = rm.objInfo
-    print "FINAL SOLUTION: ", Sol
-    print "FINAL OF: ", Of
+    print("FINAL SOLUTION: ", Sol)
+    print("FINAL OF: ", Of)
     output = { "objectiveFunction": Of,
     "runningTime": time,
     "algorithm": "random",
@@ -79,7 +79,6 @@ def execRandom(y, w, regions):
     "distanceType": distanceType,
     "distanceStat": distanceStat,
     "selectionType": selectionType,
-    "ObjectiveFuncionType": objectiveFunctionType} 
-    print "Done"
+    "ObjectiveFuncionType": objectiveFunctionType}
+    print("Done")
     return output
-

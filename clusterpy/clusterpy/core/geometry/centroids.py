@@ -17,11 +17,11 @@ def getCentroids(layer):
 
     For computational efficiency it's recommended to store the results
     on the layer database using the addVariable layer function.
-    
+
     :param layer: layer with the areas to be calculated
-    :type layer: Layer Object 
-    
-    Users must call this function through a layer object as in the 
+    :type layer: Layer Object
+
+    Users must call this function through a layer object as in the
     following example.
 
     **Example**
@@ -57,4 +57,3 @@ def getCentroids(layer):
             areaYAcum += ringPercent * ringYAcum / float(6 * areaAcum)
         centroids[a] = [areaXAcum, areaYAcum]
     return centroids
-    

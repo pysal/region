@@ -12,8 +12,8 @@ __all__ = ['expandLayer']
 # expandLayer
 def expandLayer(layer, xproportion, yproportion):
     """
-    This function scales layer width and height according to input 
-    proportions  
+    This function scales layer width and height according to input
+    proportions
 
     :param xproportion: Proportion to scale x
     :type xproportion: float
@@ -29,8 +29,8 @@ def expandLayer(layer, xproportion, yproportion):
     for a, ar in enumerate(layer.areas):
         for r, ri in enumerate(ar):
             for p, po in enumerate(ri):
-                x = layer.areas[a][r][p][0] 
-                y = layer.areas[a][r][p][1] 
+                x = layer.areas[a][r][p][0]
+                y = layer.areas[a][r][p][1]
                 layer.areas[a][r][p] = \
                 (xproportion * (x - layer.bbox[0]) + layer.bbox[0],
                 yproportion * (y - layer.bbox[1]) + layer.bbox[1])

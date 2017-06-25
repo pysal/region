@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 __all__ = ['generateLBinomial']
 
 import numpy
- 
+
 def generateLBinomial(n, y_pob, y_pro):
     """
     This function generates n simulated variables using a binomial
@@ -24,7 +24,7 @@ def generateLBinomial(n, y_pob, y_pro):
     :type y_pro: float
     :rtype: dictionariy (generated data)
 
-    **Examples** 
+    **Examples**
 
     Generating a local binomial process on China with Y1998 as the population
     level and simulated uniform probability (Uniform31) as risk level.

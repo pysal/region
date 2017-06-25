@@ -60,8 +60,8 @@ class somManager():
         #  initializing feasibles BMU
 
         self.feasibleBMU = {}
-        for i in self.data.keys():
-            self.feasibleBMU = outputLayer.Y.keys()
+        for i in list(self.data.keys()):
+            self.feasibleBMU = list(outputLayer.Y.keys())
 
         #  initializing contiguities
 
@@ -72,14 +72,14 @@ class somManager():
         elif BMUContiguity == 'custom':
             self.outputContiguity = self.outputLayer.Wcustom
         elif BMUContiguity == 'all':
-            for i in self.data.Y.keys():
-                self.BMUContiguity[i] = self.data.Y.keys()
+            for i in list(self.data.Y.keys()):
+                self.BMUContiguity[i] = list(self.data.Y.keys())
         else:
             raise NameError('Invalid contiguity Type')
 
         #  defining areas order
 
-        self.order = self.data.keys()
+        self.order = list(self.data.keys())
         self.solutionsInput = {}
 
     def __alpha(self, value):
@@ -129,12 +129,12 @@ class somManager():
         for i in self.clusters:
             self.outputLayer.Y[i] += [len(self.clusters[i])]
             for j in self.clusters[i]:
-                if self.solutionsInput.has_key(j):
+                if j in self.solutionsInput:
                     self.solutionsInput[j] += [i]
                 else:
                     self.solutionsInput[j] = [i]
                 solution[j] = i
-        return solution.values()
+        return list(solution.values())
 
     def compressSolution(self, solution):
         """

@@ -25,7 +25,7 @@ def scalePolygon(angles,ratios,scale):
 
 
 def transportPolygon(polygon,center,pointa=0):
-    if center <> 0 or pointa <> 0:
+    if center != 0 or pointa != 0:
         A = pointa
         dx = center[0]
         dy = center[1]
@@ -54,11 +54,11 @@ def transportPolygon(polygon,center,pointa=0):
 def mrpolygon(alp,sigma,mu=10,X_0=10,dt=0.001,nPoints=30):
     """Creates a mean reverting polygon (MR-Polygon)
 
-    :param alp: mean reverting speed to be used in the stochastic process 
+    :param alp: mean reverting speed to be used in the stochastic process
     :type alp: float
-    :param alp: noise gain of the stochastic process 
+    :param alp: noise gain of the stochastic process
     :type alp: float
-    :param mu: mean value of the mean reverting process 
+    :param mu: mean value of the mean reverting process
     :type mu: float
     :param X_0: initial value of the mean reverting process
     :type X_0: Float

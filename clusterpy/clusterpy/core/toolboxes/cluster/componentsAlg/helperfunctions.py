@@ -10,7 +10,7 @@ __maintainer__ = "RiSE Group"
 __email__ = "contacto@rise-group.org"
 
 import numpy as np
-from areacl import AreaCl
+from .areacl import AreaCl
 
 def indexMultiple(x,value):
     """
@@ -85,8 +85,8 @@ def neighborSort(dictionary, discardList):
     Returns the list of keys of a dictionary sorted by the
     values that are assigned by them.
     """
-    dataList = dictionary.values()
-    keyList = dictionary.keys()
+    dataList = list(dictionary.values())
+    keyList = list(dictionary.keys())
     return quickSortIntersection(dataList, keyList, discardList)
 
 def vectorDistance(v1, v2):
@@ -152,12 +152,12 @@ def recode(X):
 
     assigned = {}
 
-    for i in xrange(lenX):
+    for i in range(lenX):
         if X[i] not in assigned:
             assigned[X[i]] = r
             r += 1
 
-    for i in xrange(lenX):
+    for i in range(lenX):
         XP[i] = assigned[XP[i]]
 
     return XP
@@ -166,15 +166,15 @@ def sortedKeys(d):
     """
     Return keys of the dictionary d sorted based on their values.
     """
-    values = d.values()
+    values = list(d.values())
     sortedIndices = np.argsort(values)
-    sortedKeys = [d.keys()[i] for i in sortedIndices]
+    sortedKeys = [list(d.keys())[i] for i in sortedIndices]
     minVal = min(values)
     countMin = values.count(minVal)
     if countMin > 1:
         minIndices = sortedKeys[0: countMin]
         nInd = len(minIndices)
-        idx = range(nInd)
+        idx = list(range(nInd))
         np.random.shuffle(idx)
         permMins = idx
         c = 0
@@ -190,7 +190,7 @@ def feasibleRegion(feasDict):
     """
     areas2Eval = []
     areas = {}
-    for key in feasDict.keys():
+    for key in list(feasDict.keys()):
         try:
             neighbours = feasDict[key]
         except:

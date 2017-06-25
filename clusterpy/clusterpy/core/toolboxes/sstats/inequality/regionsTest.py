@@ -10,7 +10,7 @@ __email__ = "contacto@rise-group.org"
 
 __all__ = ['inequalityDynamic']
 
-from theilIndex import theil 
+from .theilIndex import theil
 import numpy
 import itertools
 
@@ -19,15 +19,15 @@ def interregionalInequalityTestOneVariable(Y, area2region, permutations=9999):
         result = {}
         for k in Y:
             result[k] = [Y[k][possition]]
-        return result    
-    
+        return result
+
     def shuffleMap(Y):
         result = {}
-        values = Y.values()
+        values = list(Y.values())
         numpy.random.shuffle(values)
-        keys = Y.keys()
-        newY = dict(zip(keys,values))
-        return newY    
+        keys = list(Y.keys())
+        newY = dict(list(zip(keys,values)))
+        return newY
 
     results = []
     for nv1 in range(len(Y[0])):
@@ -40,10 +40,10 @@ def interregionalInequalityTestOneVariable(Y, area2region, permutations=9999):
             if tb1 <= tb2:
                 numerator += 1
         results.append(numerator/float(permutations+1))
-    return results    
+    return results
 
 def interregionalInequalityTest(Y, fieldNames, area2regions, clusteringNames, outFile, permutations=9999):
-    """Interregional inequality tests over time (p-values) 
+    """Interregional inequality tests over time (p-values)
 
     This function examines whether the differences across a set of clustering
     solutions are significant. For more information on this function see
@@ -51,20 +51,20 @@ def interregionalInequalityTest(Y, fieldNames, area2regions, clusteringNames, ou
 
         Layer.inequality('interregionalInequalityTest', vars, area2regions, outFile=, <permutations>)
 
-    :keyword vars: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981'] 
+    :keyword vars: List with variables to be analyzed; e.g: ['Y1978', 'Y1979', 'Y1980', 'Y1981']
     :type vars: list
 
     :keyword area2regions: variables in Layer containing regionalization schemes e.g.: ["arisel1", "arisel2", "arisel3", "BELS"]
-    :type area2regions: list 
+    :type area2regions: list
 
     :keyword outFile: Name for the output file; e.g.: "regionsDifferenceTest.csv"
     :type fileName: string
 
     :keyword permutations: Number of random spatial permutations. Default value permutations = 9999.
-    :type permutations: integer 
+    :type permutations: integer
 
     :rtype: None
-    :return: None 
+    :return: None
 
     **Example 1** ::
 
@@ -73,7 +73,7 @@ def interregionalInequalityTest(Y, fieldNames, area2regions, clusteringNames, ou
         china.inequality('interregionalInequalityTest',['Y1978', 'Y1979', 'Y1980', 'Y1981'], ['BELS','T78-98','T78-85'], "interregional_inequality_test.csv")
 
     """
-    print "Creating interregional Inequality Test [Rey_Sastre2010 - Table 5]"
+    print("Creating interregional Inequality Test [Rey_Sastre2010 - Table 5]")
     fout = open(outFile,"w")
     line = "," + ",".join(fieldNames) + "\n"
     fout.write(line)
@@ -84,6 +84,5 @@ def interregionalInequalityTest(Y, fieldNames, area2regions, clusteringNames, ou
         line = clusteringNames[ni] + "," + ",".join(results) + "\n"
         fout.write(line)
     fout.close()
-    print "interregional Inequality Test created!"
-    return None    
-    
+    print("interregional Inequality Test created!")
+    return None
