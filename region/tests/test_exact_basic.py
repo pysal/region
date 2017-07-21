@@ -5,6 +5,7 @@ from geopandas import GeoDataFrame
 import libpysal as ps
 import pytest
 
+# TODO: CHANGE THIS FILE ACCORDING TO THE NEW API OF exact_algorithms.py!
 from ..exact_algorithms import cluster_exact
 
 
@@ -22,7 +23,7 @@ gdf_lattice = GeoDataFrame(
         geometry=[Polygon([(x, y),
                            (x, y+1),
                            (x+1, y+1),
-                           (x+1, y)]) for x in range(3) for y in range(3)]
+                           (x+1, y)]) for y in range(3) for x in range(3)]
 )
 
 expected_clustering1 = [0, 0, 0,
