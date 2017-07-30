@@ -9,7 +9,7 @@ from region.util import objective_func
 
 class AllowMoveStrategy(abc.ABC):
     @abc.abstractmethod
-    def move_allowed(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph):
         """
 
         Parameters
@@ -29,7 +29,7 @@ class AllowMoveStrategy(abc.ABC):
 
 
 class AllowMoveAZP(AllowMoveStrategy):
-    def move_allowed(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph):
         # before move
         obj_val_before = objective_func([from_region, to_region], graph)
         # after move
@@ -54,7 +54,7 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
         self.minsa = min_sa_moves
         self.sa = 0  # number of SA-moves
 
-    def move_allowed(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph):
         # before move
         obj_val_before = objective_func([from_region, to_region], graph)
         # after move
@@ -113,8 +113,3 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
 
     def reset(self):
         self.sa = 0  # number of SA-moves
-
-
-class AllowMoveAZPTabuSearch(AllowMoveStrategy):
-    def move_allowed(self, moving_area, from_region, to_region, graph):
-        raise NotImplementedError()  # TODO
