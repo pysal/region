@@ -578,7 +578,7 @@ class AZPReactiveTabu(AZPTabu):
                 last_step = 10
             # step 12: Repeat steps 3-11 until either no further improvements
             # are made or maximum number of iterations are exceeded.
-        if last_step != 11:
+        if last_step == 10:
             try:
                 return self.visited[-2]
             except IndexError:
