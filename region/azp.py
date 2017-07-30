@@ -332,9 +332,11 @@ class AZPTabu(AZP, abc.ABC):
 class AZPBasicTabu(AZPTabu):
     def __init__(self, n_regions, tabu_length=None, random_state=None):
         self.tabu = deque([], tabu_length)
+        self.visited = []
         super().__init__(n_regions=n_regions, random_state=random_state)
 
-    def _azp_connected_component(self, graph, initial_clustering):
+    def _azp_connected_component(self, graph, initial_clustering,
+                                 repetitions_before_termination=5):
         """
 
         Parameters
@@ -352,7 +354,16 @@ class AZPBasicTabu(AZPTabu):
 
         # todo: rm print-statements
         print("Init with: ", initial_clustering)
+        visited = []
+        stop = False
         while True:  # TODO: condition??
+            # added termination condition (not in Openshaw & Rao (1995))
+            if visited.count(region_list) >= repetitions_before_termination:
+                stop = True
+                print("VISITED", region_list, "FOR",
+                      repetitions_before_termination,
+                      "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
+            visited.append(region_list)
             print("=" * 45)
             obj_val_end = objective_func(region_list, graph)
             print("obj_value:", obj_val_end)
@@ -380,9 +391,11 @@ class AZPBasicTabu(AZPTabu):
                                             *possible_move, region_list, graph)
                                     if objval_diff < best_objval_diff:
                                         best_move = possible_move
+                                        best_objval_diff = objval_diff
                 except nx.NetworkXPointlessConcept:
                     # if area is the only one in region, it has to stay
                     pass
+            print("  best move:", best_move, "objval_diff:", best_objval_diff)
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
             print("step 2")
@@ -391,7 +404,7 @@ class AZPBasicTabu(AZPTabu):
                 print("IMPROVING MOVE")
                 self._make_move(*best_move, region_list)
             else:
-                #step 3: if no improving move can be made, then see if a tabu
+                # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
                 print("step 3")
@@ -414,9 +427,10 @@ class AZPBasicTabu(AZPTabu):
                     print("step 4")
                     print(region_list)
                     print("No improving, no aspiration ==> do the best you can")
+                    if stop:
+                        break
                     if best_move is not None:
                         self._make_move(*best_move, region_list)
-
         return region_list
 
 
