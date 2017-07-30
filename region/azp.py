@@ -537,9 +537,9 @@ class AZPReactiveTabu(AZPTabu):
                             # state.
                             print("step 11")
                             self.visited = []
-                            p = 1 + self.avg_it_until_rep/2  # todo floor?ceil?
+                            p = math.floor(1 + self.avg_it_until_rep/2)
                             possible_moves.pop(best_move_index)
-                            while p > 0:
+                            for _ in range(p):
                                 move = possible_moves.pop(
                                         random.randrange(len(possible_moves)))
                                 self._make_move(*move, region_list)
