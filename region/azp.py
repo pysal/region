@@ -330,13 +330,14 @@ class AZPTabu(AZP, abc.ABC):
 
 
 class AZPBasicTabu(AZPTabu):
-    def __init__(self, n_regions, tabu_length=None, random_state=None):
+    def __init__(self, n_regions, tabu_length=None,
+                 repetitions_before_termination=5, random_state=None):
         self.tabu = deque([], tabu_length)
         self.visited = []
+        self.reps_before_termination = repetitions_before_termination
         super().__init__(n_regions=n_regions, random_state=random_state)
 
-    def _azp_connected_component(self, graph, initial_clustering,
-                                 repetitions_before_termination=3):
+    def _azp_connected_component(self, graph, initial_clustering):
         """
 
         Parameters
@@ -360,10 +361,10 @@ class AZPBasicTabu(AZPTabu):
             print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
             region_set = set(frozenset(region) for region in region_list)
-            if visited.count(region_set) >= repetitions_before_termination:
+            if visited.count(region_set) >= self.reps_before_termination:
                 stop = True
                 print("VISITED", region_list, "FOR",
-                      repetitions_before_termination,
+                      self.reps_before_termination,
                       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
             visited.append(region_set)
             print("=" * 45)
