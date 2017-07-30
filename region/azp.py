@@ -542,56 +542,48 @@ class AZPReactiveTabu(AZPTabu):
                                 times_cycle_found += 1
                                 if times_cycle_found >= self.k2:
                                     break
-                        if times_cycle_found >= self.k2:
-                            # step 11: Delete all stored zoning systems and
-                            # make P random moves,
-                            # P = 1 + self.avg_it_until_rep/2, and
-                            # update tabu to preclude a return to the previous
-                            # state.
-                            print("step 11")
-                            # we save region_list such that we can access it if
-                            # this step yields a poor solution.
-                            last_step = (11, region_list)
-                            self.visited = []
-                            p = math.floor(1 + self.avg_it_until_rep/2)
-                            possible_moves.pop(best_move_index)
-                            for _ in range(p):
-                                move = possible_moves.pop(
-                                        random.randrange(len(possible_moves)))
-                                self._make_move(*move, region_list)
-                        else:
-                            # step 8: Update a moving average of the repetition
-                            # interval self.avg_it_until_rep, and increase the
-                            # prohibition period R to 1.1*R.
-                            print("step 8")
-                            self.rep_counter += 1
-                            counter = self.rep_counter
-                            avg_it = self.avg_it_until_rep
-                            self.avg_it_until_rep = 1 / counter * \
-                                ((counter-1)*avg_it + it_until_repetition)
+                    if times_cycle_found >= self.k2:
+                        # step 11: Delete all stored zoning systems and make P
+                        # random moves, P = 1 + self.avg_it_until_rep/2, and
+                        # update tabu to preclude a return to the previous
+                        # state.
+                        print("step 11")
+                        # we save region_list such that we can access it if
+                        # this step yields a poor solution.
+                        last_step = (11, region_list)
+                        self.visited = []
+                        p = math.floor(1 + self.avg_it_until_rep/2)
+                        possible_moves.pop(best_move_index)
+                        for _ in range(p):
+                            move = possible_moves.pop(
+                                    random.randrange(len(possible_moves)))
+                            self._make_move(*move, region_list)
+                        continue
+                    # step 8: Update a moving average of the repetition
+                    # interval self.avg_it_until_rep, and increase the
+                    # prohibition period R to 1.1*R.
+                    print("step 8")
+                    self.rep_counter += 1
+                    avg_it = self.avg_it_until_rep
+                    self.avg_it_until_rep = 1 / self.rep_counter * \
+                        ((self.rep_counter-1)*avg_it + it_until_repetition)
 
-                            self.tabu = deque(self.tabu, 1.1*self.tabu.maxlen)
-                            # step 9: If the number of iterations since R was
-                            # last changed exceeds self.avg_it_until_rep, then
-                            # decrease R to max(0.9*R, 1).
-                            print("step 9")
-                            if it_since_tabu_len_changed > self.avg_it_until_rep:
-                                new_tabu_len = max([0.9*self.tabu.maxlen, 1])
-                                new_tabu_len = math.floor(new_tabu_len)
-                                self.tabu = deque(self.tabu, new_tabu_len)
-                            it_since_tabu_len_changed = 0  # step 8
-                            # step 10: Save the zoning system and go to step
-                            # 12.
-                            print("step 10")
-                            self.visited.append(zoning_system)
-                            last_step = 10
-            else:
-                # step 10: Save the zoning system and go to step 12.
-                print("step 10")
-                self.visited.append(zoning_system)
-                last_step = 10
-            # step 12: Repeat steps 3-11 until either no further improvements
-            # are made or maximum number of iterations are exceeded.
+                    self.tabu = deque(self.tabu, 1.1*self.tabu.maxlen)
+                    # step 9: If the number of iterations since R was last
+                    # changed exceeds self.avg_it_until_rep, then decrease R to
+                    # max(0.9*R, 1).
+                    print("step 9")
+                    if it_since_tabu_len_changed > self.avg_it_until_rep:
+                        new_tabu_len = max([0.9*self.tabu.maxlen, 1])
+                        new_tabu_len = math.floor(new_tabu_len)
+                        self.tabu = deque(self.tabu, new_tabu_len)
+                    it_since_tabu_len_changed = 0  # step 8
+
+            # step 10: Save the zoning system and go to step 12.
+            print("step 10")
+            self.visited.append(zoning_system)
+            last_step = 10
+
         if last_step == 10:
             try:
                 return self.visited[-2]
