@@ -336,7 +336,7 @@ class AZPBasicTabu(AZPTabu):
         super().__init__(n_regions=n_regions, random_state=random_state)
 
     def _azp_connected_component(self, graph, initial_clustering,
-                                 repetitions_before_termination=5):
+                                 repetitions_before_termination=3):
         """
 
         Parameters
@@ -357,13 +357,15 @@ class AZPBasicTabu(AZPTabu):
         visited = []
         stop = False
         while True:  # TODO: condition??
+            print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
-            if visited.count(region_list) >= repetitions_before_termination:
+            region_set = set(frozenset(region) for region in region_list)
+            if visited.count(region_set) >= repetitions_before_termination:
                 stop = True
                 print("VISITED", region_list, "FOR",
                       repetitions_before_termination,
                       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
-            visited.append(region_list)
+            visited.append(region_set)
             print("=" * 45)
             obj_val_end = objective_func(region_list, graph)
             print("obj_value:", obj_val_end)
