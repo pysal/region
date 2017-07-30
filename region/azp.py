@@ -317,8 +317,6 @@ class AZPTabu(AZP, abc.ABC):
     def _objval_diff(self, area, from_idx, to_idx, region_list, graph):
         from_region = region_list[from_idx]
         to_region = region_list[to_idx]
-        print("from", from_region)
-        print("to", to_region)
         # before move
         objval_before = objective_func(
                 [from_region, to_region], graph)
@@ -443,6 +441,7 @@ class AZPReactiveTabu(AZPTabu):
         initial_clustering : `list`
             Each list element is a `set` containing the areas of a region.
         """
+        last_step = 1
         #  step 2: make a list of the M regions
         region_list = initial_clustering
         areas_in_component = (a for sublist in initial_clustering
@@ -536,6 +535,9 @@ class AZPReactiveTabu(AZPTabu):
                             # update tabu to preclude a return to the previous
                             # state.
                             print("step 11")
+                            # we save region_list such that we can access it if
+                            # this step yields a poor solution.
+                            last_step = (11, region_list)
                             self.visited = []
                             p = math.floor(1 + self.avg_it_until_rep/2)
                             possible_moves.pop(best_move_index)
@@ -568,10 +570,18 @@ class AZPReactiveTabu(AZPTabu):
                             # 12.
                             print("step 10")
                             self.visited.append(zoning_system)
+                            last_step = 10
             else:
                 # step 10: Save the zoning system and go to step 12.
                 print("step 10")
                 self.visited.append(zoning_system)
+                last_step = 10
             # step 12: Repeat steps 3-11 until either no further improvements
             # are made or maximum number of iterations are exceeded.
-        return region_list
+        if last_step != 11:
+            try:
+                return self.visited[-2]
+            except IndexError:
+                return self.visited[-1]
+        # if step 11 was the last one, the result is in last_step[1]
+        return last_step[1]
