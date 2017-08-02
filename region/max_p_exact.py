@@ -1,4 +1,4 @@
-from math import floor, log
+from math import floor, log10
 import numbers
 
 import libpysal as ps
@@ -83,11 +83,10 @@ class MaxPExact:
         II_upper_triangle = [(i, j) for i, j in II if i < j]
         n = len(areas)
         K = range(n)  # index of potential regions, called k in Duque et al.
-        O = range(n - 1)  # index of contiguity order, called c in Duque et al.
+        O = range(n)  # index of contiguity order, called c in Duque et al.
         d = {(i, j): dissim_measure(attr[i], attr[j])
              for i, j in II_upper_triangle}
-        h = 1 + floor(log(sum(d[(i, j)] for i, j in II_upper_triangle),
-                          base=10))
+        h = 1 + floor(log10(sum(d[(i, j)] for i, j in II_upper_triangle)))
 
         # Decision variables
         t = LpVariable.dicts(
@@ -131,6 +130,10 @@ class MaxPExact:
         # already in LpVariable-definition
         # (8) in Duque et al. (2010): "The Max-p-Regions Problem"
         # already in LpVariable-definition
+
+        # additional constraint for speedup
+        for o in O:
+            prob += x[I[0], K[0], o] == (1 if o == 0 else 0)
 
         # Solve the optimization problem
         solver = _get_solver_instance(solver)
