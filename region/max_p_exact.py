@@ -24,7 +24,7 @@ class MaxPExact:
 
     References
     ----------
-    .. [1] Duque, Church, Middleton (2011): "The p-Regions Problem"
+    .. [1] J. C. Duque, L. Anselin, S. Rey (2012): "The Max-p-Regions Problem" in Journal of Regional Science, Vol. 52, No. 3, pp. 397-419
     """
     # todo: docstring (add labels_, method_, solver_, and fit&fit_from_...-methods)
     def __init__(self):
@@ -99,53 +99,52 @@ class MaxPExact:
             lowBound=0, upBound=1, cat=LpInteger)
 
         # Objective function
-        # (1) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (1) in Duque et al. (2012): "The Max-p-Regions Problem"
         prob += -10**h * lpSum(x[i, k, 0] for k in K for i in I) \
             + lpSum(d[i, j] * t[i, j] for i, j in II_upper_triangle)
 
         # Constraints
-        # (2) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (2) in Duque et al. (2012): "The Max-p-Regions Problem"
         for k in K:
             prob += lpSum(x[i, k, 0] for i in I) <= 1
-        # (3) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (3) in Duque et al. (2012): "The Max-p-Regions Problem"
         for i in I:
             prob += lpSum(x[i, k, o] for k in K for o in O) == 1
-        # (4) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (4) in Duque et al. (2012): "The Max-p-Regions Problem"
         for i in I:
             for k in K:
                 for o in range(1, len(O)):
                     prob += x[i, k, o] <= lpSum(x[j, k, o-1]
                                                 for j in neighbor_dict[i])
-        # (5) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (5) in Duque et al. (2012): "The Max-p-Regions Problem"
         for k in K:
             lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i]
                         for i in I for o in O)
             prob += lhs >= threshold * lpSum(x[i, k, 0] for i in I)
-        # (6) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (6) in Duque et al. (2012): "The Max-p-Regions Problem"
         for i, j in II_upper_triangle:
             for k in K:
                 prob += t[i, j] >= \
                         lpSum(x[i, k, o] + x[j, k, o] for o in O) - 1
-        # (7) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (7) in Duque et al. (2012): "The Max-p-Regions Problem"
         # already in LpVariable-definition
-        # (8) in Duque et al. (2010): "The Max-p-Regions Problem"
+        # (8) in Duque et al. (2012): "The Max-p-Regions Problem"
         # already in LpVariable-definition
 
-        # additional constraint for speedup
+        # additional constraint for speedup (p. 405 in [1]_)
         for o in O:
             prob += x[I[0], K[0], o] == (1 if o == 0 else 0)
 
         # Solve the optimization problem
-        solver = _get_solver_instance(solver)
+        solver = _get_solver_instance(solver)  # todo: move this function to file not specific to the p-regions-problem
         print("start solving with", solver)
-        prob.writeLP("max-p-regions")  # todo: rm
+        # prob.writeLP("max-p-regions")  # todo: rm
         prob.solve(solver)
         print("solved")
         result_dict = {}
         for i in I:
             for k in K:
                 for o in O:
-                    print("x[", i, k, o, "] =", x[i, k, o].varValue)  # todo rm
                     if x[i, k, o].varValue == 1:
                         result_dict[i] = k
         self.labels_ = result_dict
