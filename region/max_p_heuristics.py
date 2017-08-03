@@ -49,20 +49,20 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10):
     print("constructing")
     for _ in range(max_it):
         print(" ", _)
-        partition, unassigned_areas = grow_regions(
+        partition, enclaves = grow_regions(
                 areas, d, spatially_extensive_attr, threshold)
         n_regions = len(partition)
         if n_regions > max_p:
-            partitions_before_enclaves_assignment = [partition]
+            partitions_before_enclaves_assignment = [(partition, enclaves)]
             max_p = n_regions
         elif n_regions == max_p:
-            partitions_before_enclaves_assignment.append(partition)
+            partitions_before_enclaves_assignment.append((partition, enclaves))
 
-    print("assigning enclaves")
-    for partition in partitions_before_enclaves_assignment:
+    print("\n" + "assigning enclaves")
+    for partition, enclaves in partitions_before_enclaves_assignment:
         print("  cleaning up in partition", partition)
-        feasible_partitions.append(assign_enclaves(partition, unassigned_areas,
-                                                   areas, d))
+        feasible_partitions.append(assign_enclaves(partition, enclaves, areas,
+                                                   d))
 
     return feasible_partitions  # todo rm
 
@@ -100,28 +100,28 @@ def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
 
     # todo: rm prints
     while unassigned_areas:
-        print("partition", partition)
+        # print("partition", partition)
         area = pop_randomly_from(unassigned_areas)
-        print("seed in area", area)
+        # print("seed in area", area)
         assigned_areas.append(area)
         if spatially_extensive_attr[area] >= threshold:
-            print("  seed --> region :)")
+            # print("  seed --> region :)")
             partition.append({area})
         else:
             region = {area}
-            print("  all neighbors:", neigh_dict[area])
-            print("  already assigned:", assigned_areas)
+            # print("  all neighbors:", neigh_dict[area])
+            # print("  already assigned:", assigned_areas)
             unassigned_neighs = set(neigh_dict[area]).difference(
                     assigned_areas)
             feasible = True
             spat_ext_attr = spatially_extensive_attr[area]
             while spat_ext_attr < threshold:
-                print(" ", spat_ext_attr, "<", threshold, "Need neighbors!")
-                print("  potential neighbors:", unassigned_neighs)
+                # print(" ", spat_ext_attr, "<", threshold, "Need neighbors!")
+                # print("  potential neighbors:", unassigned_neighs)
                 if unassigned_neighs:
                     neigh = find_best_area(region, unassigned_neighs,
                                            dissimilarities)
-                    print(" we choose neighbor", neigh)
+                    # print(" we choose neighbor", neigh)
                     region.add(neigh)
                     unassigned_neighs.remove(neigh)
                     unassigned_neighs.update(neigh_dict[neigh])
@@ -130,7 +130,7 @@ def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
                     unassigned_areas.remove(neigh)
                     assigned_areas.append(neigh)
                 else:
-                    print("  Oh no! No neighbors left :(")
+                    # print("  Oh no! No neighbors left :(")
                     enclave_areas.extend(region)
                     feasible = False
                     # unassigned_areas.extend(region)  # todo: rm?
@@ -139,11 +139,11 @@ def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
                     break
             if feasible:
                 partition.append(region)
-            print("  unassigned:", unassigned_areas)
-            print("  assigned:", assigned_areas)
-            print()
-
-    return partition, unassigned_areas
+            # print("  unassigned:", unassigned_areas)
+            # print("  assigned:", assigned_areas)
+            # print()
+    print("grow_regions produced", partition, "- enclaves:", enclave_areas)
+    return partition, enclave_areas
 
 
 def find_best_area(region, candidates, dissimilarities):
@@ -172,14 +172,14 @@ def find_best_area(region, candidates, dissimilarities):
     return random_element_from(best_candidates)
 
 
-def assign_enclaves(partition, unassigned_areas, neigh_dict, dissimilarities):
+def assign_enclaves(partition, enclave_areas, neigh_dict, dissimilarities):
     """
 
     Parameters
     ----------
     partition : list
         Each element (of type `set`) represents a region.
-    unassigned_areas : list
+    enclave_areas : list
         Each element represents an area.
     neigh_dict : dict
         Each key represents an area. Each value is an iterable of the
@@ -192,9 +192,10 @@ def assign_enclaves(partition, unassigned_areas, neigh_dict, dissimilarities):
     -------
 
     """
-    while unassigned_areas:
-        neighbors_of_assigned = [area for area in unassigned_areas
-                                 if any(neigh not in unassigned_areas
+    print("partition:", partition, "- enclaves:", enclave_areas)
+    while enclave_areas:
+        neighbors_of_assigned = [area for area in enclave_areas
+                                 if any(neigh not in enclave_areas
                                         for neigh in neigh_dict[area])]
         area = pop_randomly_from(neighbors_of_assigned)
         neigh_regions_idx = []
@@ -206,8 +207,8 @@ def assign_enclaves(partition, unassigned_areas, neigh_dict, dissimilarities):
                 pass
         region_idx = find_best_region_idx(area, partition, neigh_regions_idx,
                                           dissimilarities)
-        partition[region_idx].append(area)
-        unassigned_areas.remove(area)
+        partition[region_idx].add(area)
+        enclave_areas.remove(area)
     return partition
 
 
