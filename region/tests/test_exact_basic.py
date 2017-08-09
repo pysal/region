@@ -1,12 +1,12 @@
-import numpy as np
-from pandas.core.series import Series
 from shapely.geometry import Polygon
 from geopandas import GeoDataFrame
 import libpysal as ps
 import pytest
 
-# TODO: CHANGE THIS FILE ACCORDING TO THE NEW API OF exact_algorithms.py!
-from ..exact_algorithms import cluster_exact
+from region.tests.util import compare_region_lists
+from region.util import dict_to_region_list
+from ..exact_algorithms import ClusterExact
+from ..util import dataframe_to_dict
 
 
 @pytest.fixture(params=["flow", "order", "tree"])
@@ -26,30 +26,27 @@ gdf_lattice = GeoDataFrame(
                            (x+1, y)]) for y in range(3) for x in range(3)]
 )
 
-expected_clustering1 = [0, 0, 0,
-                        1, 1, 0,
-                        1, 1, 1]
-
-expected_clustering2 = [1, 1, 1,
-                        0, 0, 1,
-                        0, 0, 0]
+expected_clustering_dict = {area: region
+                            for area, region in zip(range(9), [0, 0, 0,
+                                                               1, 1, 0,
+                                                               1, 1, 1])}
+expected_clustering = dict_to_region_list(expected_clustering_dict)
 
 
 # tests with a GeoDataFrame as areas argument
 def test_geodataframe_basic(method):
-    result = cluster_exact(gdf_lattice, "values", num_regions=2, method=method)
-    assert type(result) is Series
-    result = list(result)
-    assert result == expected_clustering1 or result == expected_clustering2
+    cluster_object = ClusterExact(n_regions=2)
+    cluster_object.fit_from_geodataframe(gdf_lattice, "values", method=method)
+    result = dict_to_region_list(cluster_object.labels_)
+    compare_region_lists(result, expected_clustering)
 
 
 # tests with a dict as areas argument
 def test_dict_basic(method):
     rook = ps.weights.Contiguity.Rook.from_dataframe(gdf_lattice)
     areas = rook.neighbors
-    value_dict = dict(zip(gdf_lattice.index,
-                          np.array(gdf_lattice[["values"]])))
-    result = cluster_exact(areas, value_dict, num_regions=2, method=method)
-    assert type(result) is dict
-    result = [result[i] for i in range(9)]
-    assert result == expected_clustering1 or result == expected_clustering2
+    value_dict = dataframe_to_dict(gdf_lattice, "values")
+    cluster_object = ClusterExact(n_regions=2)
+    cluster_object.fit(areas, value_dict, method=method)
+    result = dict_to_region_list(cluster_object.labels_)
+    compare_region_lists(result, expected_clustering)
