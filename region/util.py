@@ -1,5 +1,7 @@
 import collections
+import functools
 import random
+import types
 
 import numpy as np
 import networkx as nx
@@ -18,8 +20,8 @@ def dataframe_to_dict(df, cols):
     -------
     result : dict
         The keys are the elements of the DataFrame's index.
-        Each value is an `numpy.ndarray` holding the corresponding values in
-        the columns specified by `cols`.
+        Each value is a :class:`numpy.ndarray` holding the corresponding values
+        in the columns specified by `cols`.
 
     """
     return dict(zip(df.index, np.array(df[cols])))
@@ -75,7 +77,7 @@ def distribute_regions_among_components(num_regions, nx_graph):
         The overall number of regions.
     nx_graph : `networkx.Graph`
         An undirected graph whose number of connected components is not greater
-        than `num_regions`.
+        than `n_regions`.
 
     Returns
     -------
@@ -121,3 +123,60 @@ def objective_func(region_list, graph, attr="data"):
                for i in range(len(region_list[r]))
                for j in range(len(region_list[r]))
                if i < j)
+
+
+def copy_func(f):
+    """
+    Return a copy of a function. This is useful e.g. to create aliases (whose
+    docstrings can be changed without affecting the original function).
+    The implementation is taken from https://stackoverflow.com/a/13503277.
+    """
+    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
+                           argdefs=f.__defaults__,
+                           closure=f.__closure__)
+    g = functools.update_wrapper(g, f)
+    g.__kwdefaults__ = f.__kwdefaults__
+    return g
+
+
+def region_list_to_dict(region_list):
+    """
+
+    Parameters
+    ----------
+    region_list : list of sets
+        A list of sets. Each set consists of areas belonging to the same
+        region. An example would be [{0, 1, 2, 5}, {3, 4, 6, 7, 8}].
+
+    Returns
+    -------
+    result_dict : dict
+        Each key is an area, each value is the corresponding region. An example
+        would be {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}.
+
+    """
+    result_dict = {}
+    for region_idx, region in enumerate(region_list):
+        for area in region:
+            result_dict[area] = region_idx
+    return result_dict
+
+
+def dict_to_region_list(region_dict):
+    """
+    Inverse operation of `region_list_to_dict`.
+
+    Parameters
+    ----------
+    region_dict : dict
+
+    Returns
+    -------
+    region_list : list of sets
+
+    """
+    region_list = [set() for _ in region_dict.values()]
+    for area in region_dict:
+        region_list[region_dict[area]].add(area)
+    region_list = [region for region in region_list if region]  # rm empty sets
+    return region_list

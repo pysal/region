@@ -1,87 +1,87 @@
-from math import floor, log10
+import collections
 import numbers
+from math import floor, log10
 
-import libpysal as ps
-import networkx as nx
-import numpy as np
-import pulp
 from geopandas import GeoDataFrame
 from pulp import LpProblem, LpMinimize, LpVariable, LpInteger, lpSum
 
-from region.exact_algorithms import _get_solver_instance, ClusterExact
-from region.util import dissim_measure
+from region import fit_functions
+from region.fit_functions import check_solver, get_solver_instance, \
+    graph_attr_to_dict
+from region.util import dissim_measure, copy_func, dataframe_to_dict
 
 
 class MaxPExact:
     """
-    A class for solving the p-regions problem by transforming it into a
-    mixed-integer-programming problem as described in [1]_.
+    A class for solving the max-p-regions problem by transforming it into a
+    mixed-integer-programming problem (MIP) as described in [DAR2012]_.
 
     Parameters
     ----------
-    num_regions : `int`
-        The number of regions the areas are clustered into.
 
-    References
+    Attributes
     ----------
-    .. [1] J. C. Duque, L. Anselin, S. Rey (2012): "The Max-p-Regions Problem" in Journal of Regional Science, Vol. 52, No. 3, pp. 397-419
+    labels_ : dict
+        Each key is an area and each value the region it has been assigned to.
+    solver_ : str
+        The solver used in the last call of a fit-method.
     """
-    # todo: docstring (add labels_, method_, solver_, and fit&fit_from_...-methods)
     def __init__(self):
 
         self.labels_ = None
         self.solver_ = None
 
-    def fit_from_dict(self, areas, attr, spatially_extensive_attr, threshold,
-                      solver="cbc"):
+    def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
+                      threshold, solver="cbc"):
         """\
         Parameters
         ----------
-        areas : dict
+        neighbors_dict : dict
             Each key represents an area and each value is an iterable of
             neighbors of this area.
         attr : dict
-            A dict with the same keys as `areas` and values representing the
-            attributes for calculating homo-/heterogeneity. A value can be
-            scalar (e.g. `float` or `int`) or an `numpy.ndarray`.
+            A dict with the same keys as `neighbors_dict` and values
+            representing the attributes for calculating homo-/heterogeneity. A
+            value can be scalar (e.g. `float` or `int`) or a
+            :class:`numpy.ndarray`.
         spatially_extensive_attr : dict
-            A dict with the same keys as `areas` and values representing the
-            spatially extensive attribute. In the Max-p-Regions problem each
-            region's sum of spatially extensive attributes must be greater than
-            a specified threshold.
-        threshold : float
+            A dict with the same keys as `neighbors_dict` and values
+            representing the spatially extensive attribute (scalar or iterable
+            of scalars). In the Max-p-Regions problem each region's sum of
+            spatially extensive attributes must be greater than a specified
+            threshold. In case of iterables of scalars as dict-values all
+            elements of the iterable have to fulfill the condition.
+        threshold : numbers.Real or iterable of numbers.Real
             The threshold for a region's sum of spatially extensive attributes.
+            The argument's type is numbers.Real if the values of
+            ``spatially_extensive_attr`` are scalar, otherwise the argument
+            must be an iterable of scalars.
         solver : {"cbc", "cplex", "glpk", "gurobi"}, default: "cbc"
             The solver to use. Unless the default solver is used, the user has
             to make sure that the specified solver is installed.
+
             * "cbc" - the Cbc (Coin-or branch and cut) solver
             * "cplex" - the CPLEX solver
             * "glpk" - the GLPK (GNU Linear Programming Kit) solver
             * "gurobi" - the Gurobi Optimizer
         """
-        ClusterExact._check_solver(solver)  # todo: move this static method out of ClusterExact
+        check_solver(solver)
 
-        if not isinstance(areas, dict):
-            raise ValueError("The areas argument must be dict.")
-        neighbor_dict = areas
+        if not isinstance(neighbors_dict, dict):
+            raise ValueError("The neighbors_dict argument must be dict.")
 
-        # todo: arg checks
-        # if len(neighbors_dict) < self.num_regions:
-        #     raise ValueError("The number of regions must be less than the "
-        #                      "number of areas.")
-        #
-        # if not isinstance(data, dict) or data.keys() != areas.keys():
-        #     raise ValueError("The data argument has to be of type dict with "
-        #                      "the same keys as areas.")
+        if not isinstance(attr, dict) or attr.keys() != neighbors_dict.keys():
+            raise ValueError("The attr argument has to be of type dict with "
+                             "the same keys as neighbors_dict.")
 
         prob = LpProblem("Max-p-Regions", LpMinimize)
 
         # Parameters of the optimization problem
-        I = [area for area in areas]  # index for areas
+        I = [area for area in neighbors_dict]  # index for neighbors_dict
         II = [(i, j) for i in I
                      for j in I]
         II_upper_triangle = [(i, j) for i, j in II if i < j]
-        n = len(areas)
+        n = len(neighbors_dict)
         K = range(n)  # index of potential regions, called k in Duque et al.
         O = range(n)  # index of contiguity order, called c in Duque et al.
         d = {(i, j): dissim_measure(attr[i], attr[j])
@@ -115,12 +115,24 @@ class MaxPExact:
             for k in K:
                 for o in range(1, len(O)):
                     prob += x[i, k, o] <= lpSum(x[j, k, o-1]
-                                                for j in neighbor_dict[i])
+                                                for j in neighbors_dict[i])
         # (5) in Duque et al. (2012): "The Max-p-Regions Problem"
-        for k in K:
-            lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i]
-                        for i in I for o in O)
-            prob += lhs >= threshold * lpSum(x[i, k, 0] for i in I)
+        if isinstance(spatially_extensive_attr[I[0]], numbers.Real):
+            for k in K:
+                lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i]
+                            for i in I for o in O)
+                prob += lhs >= threshold * lpSum(x[i, k, 0] for i in I)
+        elif isinstance(spatially_extensive_attr[I[0]], collections.Iterable):
+            for el in range(len(spatially_extensive_attr[I[0]])):
+                for k in K:
+                    lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i][el]
+                                for i in I for o in O)
+                    if isinstance(threshold, numbers.Real):
+                        rhs = threshold * lpSum(x[i, k, 0] for i in I)
+                        prob += lhs >= rhs
+                    elif isinstance(threshold, numbers.Real):
+                        rhs = threshold[el] * lpSum(x[i, k, 0] for i in I)
+                        prob += lhs >= rhs
         # (6) in Duque et al. (2012): "The Max-p-Regions Problem"
         for i, j in II_upper_triangle:
             for k in K:
@@ -131,12 +143,12 @@ class MaxPExact:
         # (8) in Duque et al. (2012): "The Max-p-Regions Problem"
         # already in LpVariable-definition
 
-        # additional constraint for speedup (p. 405 in [1]_)
+        # additional constraint for speedup (p. 405 in [DAR2012]_)
         for o in O:
             prob += x[I[0], K[0], o] == (1 if o == 0 else 0)
 
         # Solve the optimization problem
-        solver = _get_solver_instance(solver)  # todo: move this function to file not specific to the p-regions-problem
+        solver = get_solver_instance(solver)
         print("start solving with", solver)
         # prob.writeLP("max-p-regions")  # todo: rm
         prob.solve(solver)
@@ -149,3 +161,105 @@ class MaxPExact:
                         result_dict[i] = k
         self.labels_ = result_dict
         self.solver_ = solver
+
+    fit = copy_func(fit_from_dict)
+    fit.__doc__ = "Alias for :meth:`fit_from_dict`.\n\n" \
+                  + fit_from_dict.__doc__
+
+    def fit_from_geodataframe(self, areas, attr, spatially_extensive_attr,
+                              threshold, solver="cbc", contiguity="rook"):
+        """
+        Parameters
+        ----------
+        areas : GeoDataFrame
+
+        attr : str or list
+            The clustering criteria (columns of the GeoDataFrame `areas`) are
+            specified as string (for one column) or list of strings (for
+            multiple columns).
+        spatially_extensive_attr :
+
+        threshold :
+            See the corresponding argument in :meth:`fit_from_dict`.
+        solver : str
+            See the corresponding argument in :meth:`fit_from_dict`.
+        contiguity : {"rook", "queen"}, default: "rook"
+            Defines the contiguity relationship between areas. Possible
+            contiguity definitions are:
+
+            * "rook" - Rook contiguity.
+            * "queen" - Queen contiguity.
+        """
+        if isinstance(spatially_extensive_attr, str):
+            spatially_extensive_attr = [spatially_extensive_attr]
+        else:  # isinstance(data, collections.Sequence)
+            spatially_extensive_attr = list(spatially_extensive_attr)
+        spatially_extensive_attr = dataframe_to_dict(areas,
+                                                     spatially_extensive_attr)
+
+        fit_functions.fit_from_geodataframe(self, areas, attr,
+                                            spatially_extensive_attr,
+                                            threshold, solver,
+                                            contiguity=contiguity)
+
+    def fit_from_networkx(self, areas, attr, spatially_extensive_attr,
+                          threshold, solver="cbc"):
+        """
+        Parameters
+        ----------
+        areas : `networkx.Graph`
+
+        attr : str, list or dict
+            If the clustering criteria are present in the networkx.Graph
+            `areas` as node attributes, then they can be specified as a string
+            (for one criterion) or as a list of strings (for multiple
+            criteria).
+            Alternatively, a dict can be used with each key being a node of the
+            networkx.Graph `areas` and each value being the corresponding
+            clustering criterion (a scalar (e.g. `float` or `int`) or a
+            :class:`numpy.ndarray`).
+            If there are no clustering criteria are present in the
+            networkx.Graph `areas` as node attributes, then a dictionary must
+            be used for this argument.
+        spatially_extensive_attr : str, list or dict
+            If the spatially_extensive_attr is present in the networkx.Graph
+            `areas` as node attributes, then they can be specified as a string
+            (for one element (scalar or iterable of scalars)) or as a list of
+            strings (for multiple elements).
+            Alternatively, a dict can be used with each key being a node of the
+            networkx.Graph `areas` and each value being the corresponding
+            spatially_extensive_attr (a scalar (e.g. `float` or `int`), a
+            :class:`numpy.ndarray` or an iterable of scalars).
+            If there are no clustering criteria are present in the
+            networkx.Graph `areas` as node attributes, then a dictionary must
+            be used for this argument. See the corresponding argument in
+            :meth:`fit_from_dict` for more details about the expected the
+            expected dict.
+
+        threshold :
+            See the corresponding argument in :meth:`fit_from_dict`.
+        solver : str
+            See the corresponding argument in :meth:`fit_from_dict`.
+        """
+        sp_ext_attr_dict = graph_attr_to_dict(areas, spatially_extensive_attr)
+        fit_functions.fit_from_networkx(self, areas, attr, sp_ext_attr_dict,
+                                        threshold, solver)
+
+    def fit_from_w(self, areas, attr, spatially_extensive_attr, threshold,
+                   solver="cbc"):
+        """
+        Parameters
+        ----------
+        areas : libpysal.weights.W
+
+        attr : dict
+            See the corresponding argument in :meth:`fit_from_dict`.
+        spatially_extensive_attr : dict
+            See the corresponding argument in :meth:`fit_from_dict`.
+        threshold :
+            See the corresponding argument in :meth:`fit_from_dict`.
+        solver : str
+            See the corresponding argument in :meth:`fit_from_dict`.
+        """
+        fit_functions.fit_from_w(self, areas, attr, spatially_extensive_attr,
+                                 threshold, solver)
