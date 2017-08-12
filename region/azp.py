@@ -9,7 +9,8 @@ import networkx as nx
 
 from region.util import dataframe_to_dict, find_sublist_containing,\
                         generate_initial_sol, regionalized_components, \
-                        make_move, objective_func
+                        make_move, objective_func, dict_to_region_list, \
+                        region_list_to_dict, feasible, separate_components
 from region.move_allowing_strategies import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
@@ -72,12 +73,10 @@ class AZP:
 
         Returns
         -------
-        result_dict : dict
+        region_dict : dict
             Each key is an area. Each value is the ID of the region (integer)
             an area belongs to.
         """
-        num_areas = len(areas)
-
         if isinstance(data, str):
             data = [data]
         else:
@@ -85,9 +84,6 @@ class AZP:
         # todo: check if all elements of data correspond to a col in areas
         # todo: check if all elements of data are different
 
-        if self.n_regions >= num_areas:
-            raise ValueError("The n_regions argument must be "
-                             "less than the number of areas.")
         if contiguity is None or contiguity.lower() == "rook":
             weights = ps.weights.Contiguity.Rook.from_dataframe(areas)
         elif contiguity.lower() == "queen":
@@ -105,11 +101,22 @@ class AZP:
 
         # step 1
         if initial_sol is not None:
-            n_regions_per_comp = {comp: nx.number_connected_components(comp)
-                                  for comp in
-                                  regionalized_components(initial_sol, graph)}
+            initial_sol_list = dict_to_region_list(initial_sol)
+            feasible(initial_sol_list, graph, self.n_regions)
+            initial_sol_gen = separate_components(initial_sol, graph)
         else:
-            n_regions_per_comp = generate_initial_sol(graph, self.n_regions)
+            initial_sol_gen = generate_initial_sol(
+                    areas, graph, self.n_regions, self.random_state)
+        region_list = []
+        for comp in initial_sol_gen:
+            region_list_component = self._azp_connected_component(
+                graph, dict_to_region_list(comp))
+            region_list += region_list_component
+        region_dict = region_list_to_dict(region_list)
+        return region_dict
+
+
+
         print(n_regions_per_comp)
         region_list = []
         for comp, n_regions_in_comp in n_regions_per_comp.items():
@@ -121,12 +128,6 @@ class AZP:
                 region_list_component = [set(area for area in comp.nodes())]
             # ... and collect the results
             region_list += region_list_component
-        result_dict = {}
-        for area in graph.nodes():
-            # print("area", area, "region_list", region_list)
-            result_dict[area] = find_sublist_containing(area, region_list,
-                                                        index=True)
-        return result_dict
 
     def _azp_connected_component(self, graph, initial_clustering):
         """
