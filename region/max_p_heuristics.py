@@ -1,16 +1,14 @@
 from collections import namedtuple
 
-import libpysal as ps
-from geopandas import GeoDataFrame
-import networkx as nx
-
+from region.azp import azp
 from region.util import dissim_measure, find_sublist_containing, \
-    random_element_from, pop_randomly_from
+    random_element_from, pop_randomly_from, objective_func_dict
 
 Move = namedtuple("move", "area from_idx to_idx")
 
 
-def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10):
+def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
+                  local_search=None):
     """
 
     Parameters
@@ -39,8 +37,8 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10):
     d = {(a1, a2): dissim_measure(attr[a1], attr[a2])
          for a1 in areas for a2 in areas}
 
-    best_partition = []
-    het = float("inf")
+    best_partition = None
+    best_obj_value = float("inf")
     feasible_partitions = []
     partitions_before_enclaves_assignment = []
     max_p = 0  # maximum number of regions
@@ -63,15 +61,14 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10):
         print("  cleaning up in partition", partition)
         feasible_partitions.append(assign_enclaves(partition, enclaves, areas,
                                                    d))
-
-    return feasible_partitions  # todo rm
-
     # local search phase
-    # todo
-
-    region_dict = {}
-    #todo: make region_dict from best_partition
-    return region_dict
+    for partition in feasible_partitions:
+        partition = azp(areas, attr, num_regions=max_p, initial_sol=partition)
+        obj_value = objective_func_dict(partition, attr)
+        if obj_value < best_obj_value:
+            best_obj_value = obj_value
+            best_partition = partition
+    return best_partition
 
 
 def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
@@ -91,10 +88,15 @@ def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
 
     Returns
     -------
-
+    result : `tuple`
+        `result[0]` is a `list`. Each list element is a `set` of a region's
+        areas. Note that not every area is assigned to a region after this
+        function has terminated, so they won't be in any of the `set`s in
+        `result[0]`.
+        `result[1]` is a `list` of areas not assigned to any region.
     """
     partition = []
-    enclave_areas = []  # todo: rm? (not really needed)
+    enclave_areas = []
     unassigned_areas = list(neigh_dict.keys())
     assigned_areas = []
 
@@ -133,7 +135,10 @@ def grow_regions(neigh_dict, dissimilarities, spatially_extensive_attr,
                     # print("  Oh no! No neighbors left :(")
                     enclave_areas.extend(region)
                     feasible = False
-                    # unassigned_areas.extend(region)  # todo: rm?
+                    # the following line (present in the algorithm in
+                    # [DAR2012]) is commented out because it leads to an
+                    # infinite loop:
+                    # unassigned_areas.extend(region)
                     for area in region:
                         assigned_areas.remove(area)
                     break
@@ -174,23 +179,28 @@ def find_best_area(region, candidates, dissimilarities):
 
 def assign_enclaves(partition, enclave_areas, neigh_dict, dissimilarities):
     """
+    Start with a partial partition (not all areas are assigned to a region) and
+    a list of enclave areas (i.e. areas not present in the partial partition).
+    Then assign all enclave areas to regions in the partial partition and
+    return the resulting partition.
 
     Parameters
     ----------
-    partition : list
+    partition : `list`
         Each element (of type `set`) represents a region.
-    enclave_areas : list
+    enclave_areas : `list`
         Each element represents an area.
-    neigh_dict : dict
+    neigh_dict : `dict`
         Each key represents an area. Each value is an iterable of the
         corresponding neighbors.
-    dissimilarities : dict
+    dissimilarities : `dict`
         Each key is a tuple of two areas. Each value is the dissimilarity
         between these two areas.
 
     Returns
     -------
-
+    partition : `list`
+        Each element (of type `set`) represents a region.
     """
     print("partition:", partition, "- enclaves:", enclave_areas)
     while enclave_areas:
@@ -233,8 +243,7 @@ def find_best_region_idx(area, partition, candidate_regions_idx,
     -------
     best_idx : int
         The index of a region (w.r.t. `partition`) which has the smallest sum
-        of dissimilarities after area is moved to the region.
-
+        of dissimilarities after area `area` is moved to the region.
     """
     dissim_per_idx = {region_idx: sum(dissimilarities[area, area2]
                                       for area2 in partition[region_idx])
@@ -243,30 +252,3 @@ def find_best_region_idx(area, partition, candidate_regions_idx,
     best_idxs = [idx for idx in dissim_per_idx
                  if dissim_per_idx[idx] == minimum_dissim]
     return random_element_from(best_idxs)
-
-
-# todo: rm following func (not needed)
-def find_best_region(area, candidates, dissimilarities):
-    """
-
-    Parameters
-    ----------
-    area :
-        The area to be moved.
-    candidates : iterable
-        Each element represents a region bordering on area `area`.
-    dissimilarities : dict
-        Each key is a tuple of two areas. Each value is the dissimilarity
-        between these two areas.
-
-    Returns
-    -------
-    best_region : iterable
-        An element of `candidates` with minimal dissimilarity when being moved
-        to the region `region`.
-    """
-    candidates = {region: sum(dissimilarities[area, area2] for area2 in region)
-                  for region in candidates}
-    best_candidates = [region for region in candidates
-                       if candidates[region] == min(candidates.values())]
-    return random_element_from(best_candidates)

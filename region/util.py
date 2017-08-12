@@ -3,6 +3,7 @@ import functools
 import random
 import types
 
+import itertools
 import numpy as np
 import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
@@ -58,12 +59,12 @@ def dissim_measure(v1, v2):
     """
     Parameters
     ----------
-    v1 : float or ndarray
-    v2 : float or ndarray
+    v1 : Union[`float`, :class:`ndarray`]
+    v2 : Union[`float`, :class:`ndarray`]
 
     Returns
     -------
-    result : numpy.float64
+    result : `float`
         The dissimilarity between the values v1 and v2.
     """
     return np.linalg.norm(v1 - v2)
@@ -128,6 +129,47 @@ def objective_func(region_list, graph, attr="data"):
                for i in range(len(region_list[r]))
                for j in range(len(region_list[r]))
                if i < j)
+
+
+def objective_func_dict(regions, attr):
+    """
+
+    Parameters
+    ----------
+    regions : `dict`
+        Each key is an area. Each value is the region it is assigned to.
+    attr : `dict`
+        Each key is an area. Each value is the corresponding attribute.
+
+    Returns
+    -------
+    obj_val : float
+        The objective value is the total heterogeneity (sum of each region's
+        heterogeneity).
+    """
+    return objective_func_list(dict_to_region_list(regions), attr)
+
+
+def objective_func_list(regions, attr):
+    """
+
+    Parameters
+    ----------
+    regions : `list`
+        Each list element is an iterable of a region's areas.
+    attr : `dict`
+        Each key is an area. Each value is the corresponding attribute.
+
+    Returns
+    -------
+    obj_val : float
+        The objective value is the total heterogeneity (sum of each region's
+        heterogeneity).
+    """
+    obj_val = sum(dissim_measure(attr[i], attr[j])
+                  for r in regions
+                  for i, j in itertools.combinations(r, 2))
+    return obj_val
 
 
 def generate_initial_sol(areas, graph, n_regions, random_state):
@@ -233,49 +275,6 @@ def copy_func(f):
     return g
 
 
-def region_list_to_dict(region_list):
-    """
-
-    Parameters
-    ----------
-    region_list : `list`
-        A list of sets. Each set consists of areas belonging to the same
-        region. An example would be [{0, 1, 2, 5}, {3, 4, 6, 7, 8}].
-
-    Returns
-    -------
-    result_dict : `dict`
-        Each key is an area, each value is the corresponding region. An example
-        would be {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}.
-
-    """
-    result_dict = {}
-    for region_idx, region in enumerate(region_list):
-        for area in region:
-            result_dict[area] = region_idx
-    return result_dict
-
-
-def dict_to_region_list(region_dict):
-    """
-    Inverse operation of `region_list_to_dict`.
-
-    Parameters
-    ----------
-    region_dict : `dict`
-
-    Returns
-    -------
-    region_list : `list`
-        Each list element is a set of areas representing one region.
-    """
-    region_list = [set() for _ in region_dict.values()]
-    for area in region_dict:
-        region_list[region_dict[area]].add(area)
-    region_list = [region for region in region_list if region]  # rm empty sets
-    return region_list
-
-
 def feasible(regions, graph, n_regions=None):
     """
 
@@ -307,7 +306,8 @@ def feasible(regions, graph, n_regions=None):
 
     if n_regions is not None:
         if len(regions_list) != n_regions:
-            raise ValueError("The number of regions is " + str(len(regions_list)) +
+            raise ValueError("The number of regions is " +
+                             str(len(regions_list)) +
                              " but should be " + str(n_regions))
     for region in regions_list:
         if not nx.is_connected(graph.subgraph(region)):
@@ -328,3 +328,55 @@ def random_element_from(lst):
 def pop_randomly_from(lst):
     random_position = random.randrange(len(lst))
     return lst.pop(random_position)
+
+
+def region_list_to_dict(region_list):
+    """
+
+    Parameters
+    ----------
+    region_list : `list`
+        Each list element is an iterable of a region's areas.
+
+    Returns
+    -------
+    result_dict : `dict`
+        Each key is an area, each value is the corresponding region.
+
+    Examples
+    --------
+    >>> region_list_to_dict([{0, 1, 2, 5}, {3, 4, 6, 7, 8}])
+    {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}
+
+    """
+    result_dict = {}
+    for region_idx, region in enumerate(region_list):
+        for area in region:
+            result_dict[area] = region_idx
+    return result_dict
+
+
+def dict_to_region_list(region_dict):
+    """
+    Inverse operation of :func:`region_list_to_dict`.
+
+    Parameters
+    ----------
+    region_dict : dict
+
+    Returns
+    -------
+    region_list : `list`
+
+    Examples
+    --------
+    >>> dict_to_region_list({0: 0, 1: 0, 2: 0,
+    ...                      3: 1, 4: 1, 5: 0,
+    ...                      6: 1, 7: 1, 8: 1})
+    [{0, 1, 2, 5}, {3, 4, 6, 7, 8}]
+    """
+    region_list = [set() for _ in range(max(region_dict.values()) + 1)]
+    for area in region_dict:
+        region_list[region_dict[area]].add(area)
+    region_list = [region for region in region_list if region]  # rm empty sets
+    return region_list
