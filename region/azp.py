@@ -115,20 +115,6 @@ class AZP:
         region_dict = region_list_to_dict(region_list)
         return region_dict
 
-
-
-        print(n_regions_per_comp)
-        region_list = []
-        for comp, n_regions_in_comp in n_regions_per_comp.items():
-            # do steps 2-7 for each component separately ...
-            if n_regions_in_comp > 1:
-                region_list_component = self._azp_connected_component(
-                    graph, list(nx.connected_components(comp)))
-            else:
-                region_list_component = [set(area for area in comp.nodes())]
-            # ... and collect the results
-            region_list += region_list_component
-
     def _azp_connected_component(self, graph, initial_clustering):
         """
 

@@ -1,32 +1,42 @@
 from collections import namedtuple
 
-from region.azp import azp
+import libpysal as ps
+
+from region.azp import AZP
 from region.util import dissim_measure, find_sublist_containing, \
-    random_element_from, pop_randomly_from, objective_func_dict
+    random_element_from, pop_randomly_from, objective_func_dict, \
+    dataframe_to_dict, region_list_to_dict
 
 Move = namedtuple("move", "area from_idx to_idx")
 
 
 def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
-                  local_search=None):
+                  local_search=None, contiguity="rook"):
     """
 
     Parameters
     ----------
-    areas : dict
-        Each key represents an area. Each value is an iterable of the
-        corresponding neighbors.
-    attr : dict
-        Each key represents an area. Each value is the corresponding clustering
-        criterion (a `float` or `ndarray`).
-    spatially_extensive_attr : dict
-        Each key represents an area. Each value is the corresponding spatially
-        extensive attribute (a `float` or `ndarray`).
+    areas : :class:`geopandas.GeoDataFrame`
+        See corresponding argument in :meth:`region.azp.AZP.fit`.
+    attr : str
+        A string to select a column of the :class:`geopandas.GeoDataFrame`
+        `areas`. The selected data is used for calculating the objective
+        function.
+    spatially_extensive_attr : str
+        A string to select a column of the :class:`geopandas.GeoDataFrame`
+        `areas`. The selected data is used to ensure that the spatially
+        extensive attribute in each region adds up to a threshold defined by
+        the `threshold` argument.
     threshold : float
         Lower bound for the sum of `spatially_extensive_attr` within a region.
     max_it : int, default: 10
         The maximum number of partitions produced in the algorithm's
         construction phase.
+    local_search : Union[:class:`AZP`, :class:`AZPSimulatedAnnealing`, `None`]
+        Algorithm used in the local search phase.
+    contiguity : {"rook", "queen"}, default: "rook"
+        See corresponding argument in
+        :func:`region.fit_functions.fit_from_geodataframe`.
 
     Returns
     -------
@@ -34,8 +44,19 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
         Each key represents an area. Each value represents the corresponding
         region.
     """
-    d = {(a1, a2): dissim_measure(attr[a1], attr[a2])
-         for a1 in areas for a2 in areas}
+    if contiguity == "rook":
+        weights = ps.weights.Contiguity.Rook.from_dataframe(areas)
+    elif contiguity == "queen":
+        weights = ps.weights.Contiguity.Queen.from_dataframe(areas)
+    else:
+        raise ValueError("The contiguity argument must be either "
+                         '"rook" or "queen".')
+    areas_dict = weights.neighbors
+    attr_dict = dataframe_to_dict(areas, attr)
+    spatially_extensive_attr = dataframe_to_dict(areas,
+                                                 spatially_extensive_attr)
+    d = {(a1, a2): dissim_measure(attr_dict[a1], attr_dict[a2])
+         for a1 in areas_dict for a2 in areas_dict}
 
     best_partition = None
     best_obj_value = float("inf")
@@ -48,7 +69,7 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
     for _ in range(max_it):
         print(" ", _)
         partition, enclaves = grow_regions(
-                areas, d, spatially_extensive_attr, threshold)
+                areas_dict, d, spatially_extensive_attr, threshold)
         n_regions = len(partition)
         if n_regions > max_p:
             partitions_before_enclaves_assignment = [(partition, enclaves)]
@@ -59,12 +80,15 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
     print("\n" + "assigning enclaves")
     for partition, enclaves in partitions_before_enclaves_assignment:
         print("  cleaning up in partition", partition)
-        feasible_partitions.append(assign_enclaves(partition, enclaves, areas,
-                                                   d))
+        feasible_partitions.append(assign_enclaves(partition, enclaves,
+                                                   areas_dict, d))
     # local search phase
+    if local_search is None:
+        local_search = AZP(n_regions=max_p)
     for partition in feasible_partitions:
-        partition = azp(areas, attr, num_regions=max_p, initial_sol=partition)
-        obj_value = objective_func_dict(partition, attr)
+        partition = local_search.fit(
+                areas, attr, initial_sol=region_list_to_dict(partition))
+        obj_value = objective_func_dict(partition, attr_dict)
         if obj_value < best_obj_value:
             best_obj_value = obj_value
             best_partition = partition
@@ -231,11 +255,11 @@ def find_best_region_idx(area, partition, candidate_regions_idx,
     area :
         The area to be moved to one of the regions specified by
         `candidate_regions_idx`.
-    partition : list
+    partition : `list`
         Each element (of type `set`) represents a region.
     candidate_regions_idx : iterable
         Each element is the index of a region in the `partition` list.
-    dissimilarities : dict
+    dissimilarities : `dict`
         Each key is a tuple of two areas. Each value is the dissimilarity
         between these two areas.
 
