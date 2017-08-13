@@ -14,9 +14,12 @@ def dataframe_to_dict(df, cols):
 
     Parameters
     ----------
-    df : `pandas.DataFrame` or `geopandas.GeoDataFrame`
-    cols : list
-        A list of strings. Each string is the name of a column of `df`.
+    df : Union[:class:`pandas.DataFrame`, :class:`geopandas.GeoDataFrame`]
+
+    cols : Union[`str`,  `list`]
+        If `str`, then it is the name of a column of `df`.
+        If `list`, then it is a list of strings. Each string is the name of a
+        column of `df`.
 
     Returns
     -------
@@ -25,6 +28,20 @@ def dataframe_to_dict(df, cols):
         Each value is a :class:`numpy.ndarray` holding the corresponding values
         in the columns specified by `cols`.
 
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({"data": [100, 120, 115]})
+    >>> result = dataframe_to_dict(df, "data")
+    >>> result == {0: 100, 1: 120, 2: 115}
+    True
+    >>> import numpy as np
+    >>> df = pd.DataFrame({"data": [100, 120],
+    ...                    "other": [1, 2]})
+    >>> actual = dataframe_to_dict(df, ["data", "other"])
+    >>> desired = {0: np.array([100, 1]), 1: np.array([120, 2])}
+    >>> all(np.array_equal(actual[i], desired[i]) for i in desired)
+    True
     """
     return dict(zip(df.index, np.array(df[cols])))
 
@@ -47,6 +64,23 @@ def find_sublist_containing(el, lst, index=False):
     -------
     result : collections.Sequence, collections.Set or int
         See the `index` argument for more information.
+
+    Raises
+    ------
+    exc : LookupError
+        If `el` is not in any of the elements of `lst`.
+
+    Examples
+    --------
+    >>> lst = [{0, 1}, {2}]
+    >>> find_sublist_containing(0, lst, index=False) == {0, 1}
+    True
+    >>> find_sublist_containing(0, lst, index=True) == 0
+    True
+    >>> find_sublist_containing(2, lst, index=False) == {2}
+    True
+    >>> find_sublist_containing(2, lst, index=True) == 1
+    True
     """
     for idx, sublst in enumerate(lst):
         if el in sublst:
@@ -115,9 +149,35 @@ def distribute_regions_among_components(n_regions, graph):
 
 
 def make_move(area, from_idx, to_idx, region_list):
-    print("  move", area,
-          "  from", region_list[from_idx],
-          "  to", region_list[to_idx])
+    """
+    Modify the `region_list` argument in place (no return value!) such that the
+    area `area` appears in the set with index `to_idx` instead of `from_idx`.
+    This means that area `area` is moved to a new region.
+
+    Parameters
+    ----------
+    area :
+        The area to be moved (assigned to a new region).
+    from_idx : int
+        The index of `area`'s current region in the list `region_list`.
+    to_idx : int
+        The index of `area`'s new region in the list `region_list`.
+    region_list : `list`
+        List of `set`s where each set represents one region.
+
+    Examples
+    --------
+    >>> region0 = {0, 1, 2}
+    >>> region1 = {3}
+    >>> region_list = [region0, region1]
+    >>> make_move(2, from_idx=0, to_idx=1, region_list=region_list)
+    >>> region_list == [{0, 1}, {2, 3}]
+    True
+
+    """
+    # print("  move", area,
+    #       "  from", region_list[from_idx],
+    #       "  to", region_list[to_idx])
     region_list[from_idx].remove(area)
     region_list[to_idx].add(area)
 
@@ -211,7 +271,9 @@ def generate_initial_sol(areas, graph, n_regions, random_state):
                            comp.nodes(), k_means.fit(geometry_arr).labels_)}
         # check feasibility because K-Means can produce solutions violating the
         # spatial contiguity condition.
-        if not feasible(comp_clustering, graph):
+        try:
+            assert_feasible(comp_clustering, graph)
+        except ValueError:
             regions_list = dict_to_region_list(comp_clustering)
             for region in regions_list:
                 region_graph = comp.subgraph(region)
@@ -235,32 +297,6 @@ def generate_initial_sol(areas, graph, n_regions, random_state):
     return (c for c in comp_clusterings_dicts)
 
 
-def regionalized_components(initial_sol, graph):
-    """
-
-    Parameters
-    ----------
-    initial_sol : dict
-        If `initial_sol` is a dict then the each key must be an area and each
-        value must be the corresponding region-ID in the initial clustering.
-    graph : networkx.Graph
-        The graph with areas as nodes and links between bordering areas.
-
-    Yields
-    ------
-    comp : networkx Graph
-        The yielded value represents a connected component of graph but with
-        links removed between regions.
-    """
-    graph_copy = graph.copy()
-    for comp in nx.connected_component_subgraphs(graph_copy):
-        # cut edges between regions
-        for n1, n2 in comp.edges():
-            if initial_sol[n1] != initial_sol[n2]:
-                comp.remove_edge(n1, n2)
-        yield comp
-
-
 def copy_func(f):
     """
     Return a copy of a function. This is useful e.g. to create aliases (whose
@@ -275,7 +311,7 @@ def copy_func(f):
     return g
 
 
-def feasible(regions, graph, n_regions=None):
+def assert_feasible(regions, graph, n_regions=None):
     """
 
     Parameters
@@ -316,6 +352,44 @@ def feasible(regions, graph, n_regions=None):
 
 
 def separate_components(region_dict, graph):
+    """
+
+    Parameters
+    ----------
+    region_dict : `dict`
+
+    graph : :class:`networkx.Graph`
+
+
+    Yields
+    ------
+    comp_dict : `dict`
+        Dictionary representing the clustering of a connected component in the
+        graph passed as argument.
+
+    Examples
+    --------
+    >>> edges_island1 = [(0, 1), (1, 2),          # 0 | 1 | 2
+    ...                  (0, 3), (1, 4), (2, 5),  # ---------
+    ...                  (3, 4), (4,5)]           # 3 | 4 | 5
+    >>>
+    >>> edges_island2 = [(6, 7),                  # 6 | 7
+    ...                  (6, 8), (7, 9),          # -----
+    ...                  (8, 9)]                  # 8 | 9
+    >>>
+    >>> graph = nx.Graph(edges_island1 + edges_island2)
+    >>>
+    >>> # island 1: island divided into regions 0, 1, and 2
+    >>> regions_dict = {area: area%3 for area in range(6)}
+    >>> # island 2: all areas are in region 3
+    >>> regions_dict.update({area: 3 for area in range(6, 10)})
+    >>>
+    >>> yielded = list(separate_components(regions_dict, graph))
+    >>> yielded == [{0: 0, 1: 1, 2: 2, 3: 0, 4: 1, 5: 2},
+    ...             {8: 3, 9: 3, 6: 3, 7: 3}]
+    True
+
+    """
     for comp in nx.connected_component_subgraphs(graph):
         yield {area: region_dict[area] for area in comp.nodes()}
 
@@ -345,8 +419,9 @@ def region_list_to_dict(region_list):
 
     Examples
     --------
-    >>> region_list_to_dict([{0, 1, 2, 5}, {3, 4, 6, 7, 8}])
-    {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}
+    >>> result_dict = region_list_to_dict([{0, 1, 2, 5}, {3, 4, 6, 7, 8}])
+    >>> result_dict == {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}
+    True
 
     """
     result_dict = {}
@@ -370,10 +445,11 @@ def dict_to_region_list(region_dict):
 
     Examples
     --------
-    >>> dict_to_region_list({0: 0, 1: 0, 2: 0,
-    ...                      3: 1, 4: 1, 5: 0,
-    ...                      6: 1, 7: 1, 8: 1})
-    [{0, 1, 2, 5}, {3, 4, 6, 7, 8}]
+    >>> region_list = dict_to_region_list({0: 0, 1: 0, 2: 0,
+    ...                                    3: 1, 4: 1, 5: 0,
+    ...                                    6: 1, 7: 1, 8: 1})
+    >>> region_list == [{0, 1, 2, 5}, {3, 4, 6, 7, 8}]
+    True
     """
     region_list = [set() for _ in range(max(region_dict.values()) + 1)]
     for area in region_dict:

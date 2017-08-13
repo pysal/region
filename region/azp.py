@@ -8,9 +8,9 @@ from geopandas import GeoDataFrame
 import networkx as nx
 
 from region.util import dataframe_to_dict, find_sublist_containing,\
-                        generate_initial_sol, regionalized_components, \
+                        generate_initial_sol, \
                         make_move, objective_func, dict_to_region_list, \
-                        region_list_to_dict, feasible, separate_components
+                        region_list_to_dict, assert_feasible, separate_components
 from region.move_allowing_strategies import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
@@ -102,7 +102,7 @@ class AZP:
         # step 1
         if initial_sol is not None:
             initial_sol_list = dict_to_region_list(initial_sol)
-            feasible(initial_sol_list, graph, self.n_regions)
+            assert_feasible(initial_sol_list, graph, self.n_regions)
             initial_sol_gen = separate_components(initial_sol, graph)
         else:
             initial_sol_gen = generate_initial_sol(
