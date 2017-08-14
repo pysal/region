@@ -20,13 +20,11 @@ Move = namedtuple("move", "area from_idx to_idx")
 
 
 class AZP:
-    def __init__(self, n_regions, allow_move_strategy=None, random_state=None):
+    def __init__(self, allow_move_strategy=None, random_state=None):
         """
 
         Parameters
         ----------
-        n_regions : int
-            The number of regions the areas are clustered into.
         allow_move_strategy : None or AllowMoveStrategy
             If None, then the AZP algorithm in [1]_ is chosen.
             For a different behavior for allowing moves an AllowMoveStrategy
@@ -38,8 +36,8 @@ class AZP:
         ----------
         .. [1] Openshaw S, Rao L. "Algorithms for reengineering 1991 census geography." Environ Plan A. 1995 Mar;27(3):425-46.
         """
+        self.n_regions = None
         self.labels_ = None
-        self.n_regions = n_regions
         self.random_state = random_state
         random.seed(self.random_state)
 
@@ -53,7 +51,7 @@ class AZP:
         else:
             raise ValueError(wrong_allow_move_arg_msg)
 
-    def fit(self, areas, data, contiguity=None, initial_sol=None):
+    def fit(self, areas, data, n_regions, contiguity=None, initial_sol=None):
         """
 
         Parameters
@@ -63,6 +61,8 @@ class AZP:
         data : str or list
             A string to select one column or a list of strings to select
             multiple columns.
+        n_regions : int
+            The number of regions the areas are clustered into.
         contiguity : {"rook", "queen"}
             This argument defines the contiguity relationship between areas.
         initial_sol : None or dict, default: None
@@ -94,7 +94,7 @@ class AZP:
         weights.remap_ids(areas.index)
         graph = weights.to_networkx()
         n_comp = nx.number_connected_components(graph)
-        if n_comp > self.n_regions:
+        if n_comp > n_regions:
             raise ValueError("The n_regions argument must not be less than "
                              "the number of connected components.")
         nx.set_node_attributes(graph, "data", dataframe_to_dict(areas, data))
@@ -102,17 +102,18 @@ class AZP:
         # step 1
         if initial_sol is not None:
             initial_sol_list = dict_to_region_list(initial_sol)
-            assert_feasible(initial_sol_list, graph, self.n_regions)
+            assert_feasible(initial_sol_list, graph, n_regions)
             initial_sol_gen = separate_components(initial_sol, graph)
         else:
             initial_sol_gen = generate_initial_sol(
-                    areas, graph, self.n_regions, self.random_state)
+                    areas, graph, n_regions, self.random_state)
         region_list = []
         for comp in initial_sol_gen:
             region_list_component = self._azp_connected_component(
                 graph, dict_to_region_list(comp))
             region_list += region_list_component
         region_dict = region_list_to_dict(region_list)
+        self.n_regions = n_regions
         return region_dict
 
     def _azp_connected_component(self, graph, initial_clustering):
@@ -203,7 +204,7 @@ class AZP:
 
 
 class AZPSimulatedAnnealing:
-    def __init__(self, n_regions, init_temperature=None,
+    def __init__(self, init_temperature=None,
                  max_iterations=float("inf"), min_sa_moves=0,
                  nonmoving_steps_before_stop=3, random_state=None):
 
@@ -217,8 +218,7 @@ class AZPSimulatedAnnealing:
         self.allow_move_strategy.register_min_sa_moves(self.sa_moves_alert)
         self.allow_move_strategy.register_move_made(self.move_made_alert)
 
-        self.azp = AZP(n_regions=n_regions,
-                       allow_move_strategy=self.allow_move_strategy,
+        self.azp = AZP(allow_move_strategy=self.allow_move_strategy,
                        random_state=random_state)
 
         self.maxit = max_iterations
@@ -228,7 +228,7 @@ class AZPSimulatedAnnealing:
         self.move_made = False
         self.nonmoving_steps_before_stop = nonmoving_steps_before_stop
 
-    def fit(self, areas, data, contiguity=None, initial_sol=None,
+    def fit(self, areas, data, n_regions, contiguity=None, initial_sol=None,
             cooling_factor=0.85):
         """
 
@@ -236,6 +236,7 @@ class AZPSimulatedAnnealing:
         ----------
         areas :
         data :
+        n_regions :
         contiguity :
         initial_sol :
         cooling_factor :
@@ -263,7 +264,7 @@ class AZPSimulatedAnnealing:
                 it += 1
                 old_sol = initial_sol
                 initial_sol = self.azp.fit(
-                        areas, data, contiguity, initial_sol)
+                        areas, data, n_regions, contiguity, initial_sol)
 
                 print("old_sol", old_sol)
                 print("new_sol", initial_sol)
@@ -317,12 +318,12 @@ class AZPTabu(AZP, abc.ABC):
 
 
 class AZPBasicTabu(AZPTabu):
-    def __init__(self, n_regions, tabu_length=None,
+    def __init__(self, tabu_length=None,
                  repetitions_before_termination=5, random_state=None):
         self.tabu = deque([], tabu_length)
         self.visited = []
         self.reps_before_termination = repetitions_before_termination
-        super().__init__(n_regions=n_regions, random_state=random_state)
+        super().__init__(random_state=random_state)
 
     def _azp_connected_component(self, graph, initial_clustering):
         """
@@ -425,9 +426,9 @@ class AZPBasicTabu(AZPTabu):
 
 
 class AZPReactiveTabu(AZPTabu):
-    def __init__(self, n_regions, max_iterations, k1, k2, random_state=None):
+    def __init__(self, max_iterations, k1, k2, random_state=None):
         self.tabu = deque([], maxlen=1)
-        super().__init__(n_regions=n_regions, random_state=random_state)
+        super().__init__(random_state=random_state)
         self.avg_it_until_rep = 1
         self.rep_counter = 1
         self.maxit = max_iterations

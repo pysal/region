@@ -4,6 +4,7 @@ import numbers
 import math
 import random
 
+from region import util
 from region.util import objective_func
 
 
@@ -15,16 +16,19 @@ class AllowMoveStrategy(abc.ABC):
         Parameters
         ----------
         moving_area
-        from_region
-        to_region
-        graph
+
+        from_region : `set`
+
+        to_region : `set`
+
+        graph : :class:`networkx`
 
         Returns
         -------
-        is_allowed : bool
-            True if area `moving_area` is allowed to move from `from_region` to
-            `to_region`.
-            False otherwise.
+        is_allowed : `bool`
+            `True` if area `moving_area` is allowed to move from `from_region`
+            to `to_region`.
+            `False` otherwise.
         """
 
 
@@ -83,11 +87,7 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
         ----------
         observer_func : callable
             A function to call when the minimum number of SA moves has been
-            reached. This number is called Q in [1]_ (page 431).
-
-        References
-        ----------
-        .. [1] Openshaw S, Rao L. "Algorithms for reengineering 1991 census geography." Environ Plan A. 1995 Mar;27(3):425-46.
+            reached. This number is called Q in [OR1995]_ (page 431).
         """
         if callable(observer_func):
             self.observers_min_sa_moves.append(observer_func)
@@ -113,3 +113,53 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
 
     def reset(self):
         self.sa = 0  # number of SA-moves
+
+
+class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
+    """
+    Ensures that the spatially extensive attribute adds up to a
+    given threshold in each region. Only moves preserving this condition in
+    both the donor as well as the recipient region are allowed. The check for
+    the recipient region is necessary in case there is an area with a negative
+    spatially extensive attribute.
+    """
+    def __init__(self, areas_gdf, spatially_extensive_attr, threshold,
+                 decorated_strategy):
+        """
+
+        Parameters
+        ----------
+        areas_gdf : :class:`GeoDataFrame`
+
+        spatially_extensive_attr : `str`
+
+        threshold : `float`
+
+        decorated_strategy : :class:`AllowMoveStrategy`
+
+        """
+        self.spatially_extensive_attr_dict = util.dataframe_to_dict(
+            areas_gdf, spatially_extensive_attr)
+        self.threshold = threshold
+        self._decorated_strategy = decorated_strategy
+
+    def __call__(self, moving_area, donor_region, recipient_region, graph):
+        donor_sum = sum(self.spatially_extensive_attr_dict[area]
+                        for area in donor_region if area is not moving_area)
+        threshold_reached_donor = donor_sum >= self.threshold
+        recipient_sum = sum(self.spatially_extensive_attr_dict[area]
+                            for area in recipient_region) \
+            + self.spatially_extensive_attr_dict[moving_area]
+        threshold_reached_recipient = recipient_sum >= self.threshold
+
+        if threshold_reached_donor and threshold_reached_recipient:
+            return self._decorated_strategy(moving_area, donor_region,
+                                            recipient_region, graph)
+        return False
+
+    def __getattr__(self, name):
+        """
+        Forward calls to unimplemented methods to _decorated_strategy
+        (necessary e.g. for :class:`AllowMoveAZPSimulatedAnnealing`).
+        """
+        return getattr(self._decorated_strategy, name)

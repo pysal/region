@@ -104,6 +104,6 @@ def test_pop_randomly_from():
 def test_AZP_azp_connected_component__one_area():
     single_node = nx.Graph()
     single_node.add_node(0)
-    azp = AZP(n_regions=1)
+    azp = AZP()
     region_list = azp._azp_connected_component(single_node, [{0}])
     assert region_list == [{0}]

@@ -3,6 +3,7 @@ from collections import namedtuple
 import libpysal as ps
 
 from region.azp import AZP
+from region.move_allowing_strategies import AllowMoveAZPMaxPRegions
 from region.util import dissim_measure, find_sublist_containing, \
     random_element_from, pop_randomly_from, objective_func_dict, \
     dataframe_to_dict, region_list_to_dict
@@ -53,8 +54,8 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
                          '"rook" or "queen".')
     areas_dict = weights.neighbors
     attr_dict = dataframe_to_dict(areas, attr)
-    spatially_extensive_attr = dataframe_to_dict(areas,
-                                                 spatially_extensive_attr)
+    spatially_extensive_attr_dict = dataframe_to_dict(areas,
+                                                      spatially_extensive_attr)
     d = {(a1, a2): dissim_measure(attr_dict[a1], attr_dict[a2])
          for a1 in areas_dict for a2 in areas_dict}
 
@@ -69,7 +70,7 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
     for _ in range(max_it):
         print(" ", _)
         partition, enclaves = grow_regions(
-                areas_dict, d, spatially_extensive_attr, threshold)
+                areas_dict, d, spatially_extensive_attr_dict, threshold)
         n_regions = len(partition)
         if n_regions > max_p:
             partitions_before_enclaves_assignment = [(partition, enclaves)]
@@ -84,10 +85,13 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
                                                    areas_dict, d))
     # local search phase
     if local_search is None:
-        local_search = AZP(n_regions=max_p)
+        local_search = AZP()
+    local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
+            areas, spatially_extensive_attr, threshold,
+            local_search.allow_move_strategy)
     for partition in feasible_partitions:
         partition = local_search.fit(
-                areas, attr, initial_sol=region_list_to_dict(partition))
+                areas, attr, max_p, initial_sol=region_list_to_dict(partition))
         obj_value = objective_func_dict(partition, attr_dict)
         if obj_value < best_obj_value:
             best_obj_value = obj_value
