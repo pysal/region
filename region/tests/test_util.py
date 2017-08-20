@@ -1,9 +1,8 @@
 import networkx as nx
 import pytest
-from shapely.geometry import Polygon
 
+from region.p_regions.azp import AZP
 from .. import util
-from ..azp import AZP
 
 
 def all_elements_equal(iterable):

@@ -1,20 +1,19 @@
 import abc
-from collections import deque, namedtuple
 import math
 import random
+from collections import deque, namedtuple
 
 import libpysal as ps
-from geopandas import GeoDataFrame
 import networkx as nx
+from geopandas import GeoDataFrame
 
+from region.p_regions.azp_util import AllowMoveStrategy, \
+                                            AllowMoveAZP,\
+                                            AllowMoveAZPSimulatedAnnealing
 from region.util import dataframe_to_dict, find_sublist_containing,\
                         generate_initial_sol, \
                         make_move, objective_func, dict_to_region_list, \
                         region_list_to_dict, assert_feasible, separate_components
-from region.move_allowing_strategies import AllowMoveStrategy, \
-                                            AllowMoveAZP,\
-                                            AllowMoveAZPSimulatedAnnealing
-
 
 Move = namedtuple("move", "area from_idx to_idx")
 

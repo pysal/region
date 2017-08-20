@@ -1,12 +1,12 @@
-from shapely.geometry import Polygon
-from geopandas import GeoDataFrame
 import libpysal as ps
 import pytest
+from geopandas import GeoDataFrame
+from shapely.geometry import Polygon
 
+from region.p_regions.exact import ClusterExact
 from region.tests.util import compare_region_lists
 from region.util import dict_to_region_list
-from ..exact_algorithms import ClusterExact
-from ..util import dataframe_to_dict
+from region.util import dataframe_to_dict
 
 
 @pytest.fixture(params=["flow", "order", "tree"])

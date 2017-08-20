@@ -1,13 +1,11 @@
-import numpy as np
-from shapely.geometry import Polygon
-from geopandas import GeoDataFrame
-import networkx as nx
 import libpysal as ps
+import networkx as nx
+from geopandas import GeoDataFrame
+from shapely.geometry import Polygon
 
+from region.max_p_regions.exact import MaxPExact
 from region.tests.util import compare_region_lists
 from region.util import dict_to_region_list, dataframe_to_dict
-from ..max_p_exact import MaxPExact
-
 
 value_list = [350.2, 400.5, 430.8,
               490.4, 410.9, 450.4,

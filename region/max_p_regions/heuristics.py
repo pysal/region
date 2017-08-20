@@ -2,8 +2,8 @@ from collections import namedtuple
 
 import libpysal as ps
 
-from region.azp import AZP
-from region.move_allowing_strategies import AllowMoveAZPMaxPRegions
+from region.p_regions.azp import AZP
+from region.p_regions.azp_util import AllowMoveAZPMaxPRegions
 from region.util import dissim_measure, find_sublist_containing, \
     random_element_from, pop_randomly_from, objective_func_dict, \
     dataframe_to_dict, region_list_to_dict
