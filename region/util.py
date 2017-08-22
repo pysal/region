@@ -1,9 +1,10 @@
 import collections
 import functools
+import itertools
 import random
 import types
 
-import itertools
+import scipy.sparse.csgraph as cg
 import numpy as np
 import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
@@ -158,12 +159,12 @@ def make_move(area, from_idx, to_idx, region_list):
     ----------
     area :
         The area to be moved (assigned to a new region).
-    from_idx : int
+    from_idx : `int`
         The index of `area`'s current region in the list `region_list`.
-    to_idx : int
+    to_idx : `int`
         The index of `area`'s new region in the list `region_list`.
     region_list : `list`
-        List of `set`s where each set represents one region.
+        List of sets where each set represents one region.
 
     Examples
     --------
@@ -173,7 +174,6 @@ def make_move(area, from_idx, to_idx, region_list):
     >>> make_move(2, from_idx=0, to_idx=1, region_list=region_list)
     >>> region_list == [{0, 1}, {2, 3}]
     True
-
     """
     # print("  move", area,
     #       "  from", region_list[from_idx],
@@ -232,7 +232,93 @@ def objective_func_list(regions, attr):
     return obj_val
 
 
-def generate_initial_sol(areas, graph, n_regions, random_state):
+def generate_initial_sol(w, n_regions):
+    """
+    Generate a random initial clustering.
+
+    Parameters
+    ----------
+    w : :class:`libpysal.weights.weights.W`
+
+    n_regions : int
+
+    Yields
+    ------
+    result : `dict`
+        Each key must be an area and each value must be the corresponding
+        region-ID. The dict's keys are a connected component of the graph
+        provided to the function.
+    """
+    graph = w.to_networkx()
+    n_regions_per_comp = distribute_regions_among_components(
+            n_regions, graph)
+    for comp, n_regions_in_comp in n_regions_per_comp.items():
+        comp_adj = nx.to_scipy_sparse_matrix(comp)
+        labels = randomly_divide_connected_graph(comp_adj, n_regions_in_comp)
+        yield {area: region for area, region in zip(comp.nodes(), labels)}
+
+
+def randomly_divide_connected_graph(adj, n_regions):
+    """
+    Divide the provided connected graph into `n_regions` regions.
+
+    Parameters
+    ----------
+    csgraph : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix.
+    n_regions : int
+        The desired number of clusters. Must be > 0 and <= number of nodes.
+
+    Returns
+    -------
+    labels : `list`
+        Each element of the list specifies the region an area belongs to.
+
+    Examples
+    --------
+    >>> from scipy.sparse import diags
+    >>> n_nodes = 10
+    >>> adj_diagonal = [1] * (n_nodes-1)
+    >>> # 10x10 adjacency matrix representing the path 0-1-2-...-9-10
+    >>> adj = diags([adj_diagonal, adj_diagonal], offsets=[-1, 1])
+    >>> n_regions_desired = 4
+    >>> labels = randomly_divide_connected_graph(adj, n_regions_desired)
+    >>> n_regions_obtained = len(set(labels))
+    >>> n_regions_desired == n_regions_obtained
+    True
+    """
+    if not n_regions > 0:
+        msg = "n_regions is {} but must be positive.".format(n_regions)
+        raise ValueError(msg)
+    if not n_regions <= adj.shape[0]:
+        msg = "n_regions is {} but must less than or equal to " + \
+              "the number of nodes which is {}".format(n_regions, adj.shape[0])
+        raise ValueError(msg)
+    mst = cg.minimum_spanning_tree(adj)
+    for _ in range(n_regions - 1):
+        # try different links to cut and pick the one leading to the most
+        # balanced solution
+        best_link = None
+        max_region_size = float("inf")
+        for __ in range(5):
+            mst_copy = mst.copy()
+            nonzero_i, nonzero_j = mst_copy.nonzero()
+            random_position = random.randrange(len(nonzero_i))
+            i, j = nonzero_i[random_position], nonzero_j[random_position]
+            mst_copy[i, j] = 0
+            mst_copy.eliminate_zeros()
+            labels = cg.connected_components(mst_copy, directed=False)[1]
+            max_size = max(np.unique(labels, return_counts=True)[1])
+            print(max_size)
+            if max_size < max_region_size:
+                best_link = (i, j)
+                max_region_size = max_size
+        mst[best_link[0], best_link[1]] = 0
+        mst.eliminate_zeros()
+    return cg.connected_components(mst)[1]
+
+
+def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):
     """
 
     Parameters

@@ -18,7 +18,8 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
     Parameters
     ----------
     areas : :class:`geopandas.GeoDataFrame`
-        See corresponding argument in :meth:`region.azp.AZP.fit`.
+        See corresponding argument in
+        :meth:`region.azp.AZP.fit_from_geodataframe`.
     attr : str
         A string to select a column of the :class:`geopandas.GeoDataFrame`
         `areas`. The selected data is used for calculating the objective
@@ -90,7 +91,7 @@ def max_p_regions(areas, attr, spatially_extensive_attr, threshold, max_it=10,
             areas, spatially_extensive_attr, threshold,
             local_search.allow_move_strategy)
     for partition in feasible_partitions:
-        partition = local_search.fit(
+        partition = local_search.fit_from_geodataframe(
                 areas, attr, max_p, initial_sol=region_list_to_dict(partition))
         obj_value = objective_func_dict(partition, attr_dict)
         if obj_value < best_obj_value:

@@ -11,7 +11,7 @@ from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
 from region.util import dataframe_to_dict, find_sublist_containing,\
-                        generate_initial_sol, \
+                        generate_initial_sol_kmeans, \
                         make_move, objective_func, dict_to_region_list, \
                         region_list_to_dict, assert_feasible, separate_components
 
@@ -50,7 +50,46 @@ class AZP:
         else:
             raise ValueError(wrong_allow_move_arg_msg)
 
-    def fit(self, areas, data, n_regions, contiguity=None, initial_sol=None):
+    def fit_from_w(self, areas, data, n_regions, initial_sol=None):
+        """
+
+        Parameters
+        ----------
+        areas : :class:`libpysal.weights.weights.W`
+
+        data :
+
+        n_regions : int
+
+        initial_sol : dict
+
+        Returns
+        -------
+
+        """
+        # todo
+
+    def fit_from_sparse_adj(self, adj, data, n_regions, initial_sol=None):
+        """
+
+        Parameters
+        ----------
+        adj : :class:`scipy.sparse.csr_matrix`
+
+        data :
+
+        n_regions : int
+
+        initial_sol : dict
+
+        Returns
+        -------
+
+        """
+        # todo
+
+    def fit_from_geodataframe(self, areas, data, n_regions, contiguity=None,
+                              initial_sol=None):
         """
 
         Parameters
@@ -104,7 +143,7 @@ class AZP:
             assert_feasible(initial_sol_list, graph, n_regions)
             initial_sol_gen = separate_components(initial_sol, graph)
         else:
-            initial_sol_gen = generate_initial_sol(
+            initial_sol_gen = generate_initial_sol_kmeans(
                     areas, graph, n_regions, self.random_state)
         region_list = []
         for comp in initial_sol_gen:
@@ -266,7 +305,7 @@ class AZPSimulatedAnnealing:
             while it < self.maxit and not self.min_sa_moves_reached:
                 it += 1
                 old_sol = initial_sol
-                initial_sol = self.azp.fit(
+                initial_sol = self.azp.fit_from_geodataframe(
                         areas, data, n_regions, contiguity, initial_sol)
 
                 print("old_sol", old_sol)
