@@ -1396,7 +1396,7 @@ class RegionMaker:
         self.region2Area[regionID].append(areaID)
         self.area2Region[areaID] = regionID
         a = self.areas[areaID]
-        toUpdate = [areaID] + a.neighs
+        toUpdate = [areaID] + list(a.neighs)
         if self.objectiveFunctionType == "GWalt":
             self.NRegion[regionID] += a.data[0]
             self.NRegion[oldRegion] -= a.data[0]
