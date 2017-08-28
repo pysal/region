@@ -14,7 +14,10 @@ import struct
 import pickle
 import re
 
-from libpysal import api as ps
+try:
+    from libpysal import api as ps
+except ImportError:
+    import pysal as ps
 
 from .contiguity import weightsFromAreas, fixIntersections
 from .layer import Layer
