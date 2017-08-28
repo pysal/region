@@ -13,8 +13,12 @@ __all__ = ['new','load','importArcData','createPoints','createHexagonalGrid',
 import struct
 import pickle
 import re
+
+from libpysal import api as ps
+
 from .contiguity import weightsFromAreas, fixIntersections
 from .layer import Layer
+
 try:
     from .toolboxes import rimap as rim
     __all__ += ['rimap']
@@ -156,18 +160,27 @@ def importArcData(filename):
     """
     layer = Layer()
     layer.name = filename.split('/')[-1]
-    print("Loading " + filename + ".dbf")
-    data, fields, specs = importDBF(filename + '.dbf')
-    print("Loading " + filename + ".shp")
+    #print("Loading " + filename + ".dbf")
+    dbf = ps.open(filename+".dbf")
+    fields = dbf.header
+    #data, fields, specs = importDBF(filename + '.dbf')
+    data = {}
+    #print "Loading " + filename + ".shp"
     if fields[0] != "ID":
         fields = ["ID"] + fields
-        for y in list(data.keys()):
-            data[y] = [y] + data[y]
+        for y in range(dbf.n_records):
+            data[y] = [y] + dbf.by_row(y)
+    else:
+        for y in range(dbf.n_records):
+            data[y] = dbf.by_row_(y)
+
     layer.fieldNames = fields
     layer.Y = data
-    layer.areas, layer.Wqueen, layer.Wrook, layer.shpType = importShape(filename + '.shp')
-    layer._defBbox()
-    print("Done")
+    layer.shpType = 5  # Polygon
+    #print 'pysal reader'
+    layer.Wrook = ps.rook_from_shapefile(filename+".shp").neighbors
+    layer.Wqueen = ps.queen_from_shapefile(filename+".shp").neighbors
+    #print "Done"
     return layer
 
 def createPoints(nRows, nCols, lowerLeft=(0,0), upperRight=(100,100)):
@@ -555,7 +568,7 @@ def readPolygons(bodyBytes):
     """This function reads an ESRI shape file of polygons.
 
     :param bodyBytes: bytes to be processed
-    :type bodyBytes: string
+    :type bodyBytes: bytes
     :rtype: tuple (information about the layer and areas coordinates).
     """
     INFO = {}
@@ -572,7 +585,7 @@ def readPolygons(bodyBytes):
     bb5 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb6 = struct.unpack('>d', bodyBytes.read(8))[0]
     bb7 = struct.unpack('>d', bodyBytes.read(8))[0]
-    while bodyBytes.read(1) != "":# 100 bytes for header
+    while bodyBytes.read(1) != b"":# 100 bytes for header
         area = []
         bodyBytes.seek(7, 1)
         bodyBytes.seek(36, 1)
@@ -619,8 +632,8 @@ def importDBF(filename):
     lenDataRecord = struct.unpack('h', fileBytes.read(2))[0]
     fileBytes.seek(20, 1)
     while fileBytes.tell() < firstDataRecord - 1:
-        name = ''.join(struct.unpack(11 * 'c', fileBytes.read(11))).replace("\x00", "")
-        typ = ''.join(struct.unpack('c', fileBytes.read(1)))
+        name = b''.join(struct.unpack(11 * 'c', fileBytes.read(11))).replace(b"\x00", b"")
+        typ = b''.join(struct.unpack('c', fileBytes.read(1)))
         fileBytes.seek(4, 1)
         siz = struct.unpack('B', fileBytes.read(1))[0]
         dec = struct.unpack('B', fileBytes.read(1))[0]
@@ -640,11 +653,11 @@ def importDBF(filename):
             dec = field[2]
             end = start + l + first
             value = record[start: end]
-            while value.find("  ") != -1:
-                value = value.replace("  ", " ")
-            if value.startswith(" "):
+            while value.find(b"  ") != -1:
+                value = value.replace(b"  ", b" ")
+            if value.startswith(b" "):
                 value = value[1:]
-            if value.endswith(" "):
+            if value.endswith(b" "):
                 value = value[:-1]
             if field[0] in ["N", "F", "B", "I", "O"]:
                 if dec == 0:
