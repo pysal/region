@@ -10,6 +10,33 @@ import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
 
 
+def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
+    """
+    Return values of the dictionary passed as `dct` argument as an numpy array.
+    The values in the returned array are sorted by the keys of `dct`.
+
+    Parameters
+    ----------
+    dct : dict
+
+    sorted_keys : iterable, optional
+        If passed, then the elements of the returned array will be sorted by
+        this argument. Thus, this argument can be passed to suppress the
+        sorting, or for getting a subset of the dictionary's values or to get
+        repeated values.
+    dtype : default: np.float64
+        The `dtype` of the returned array.
+
+    Returns
+    -------
+    array : :class:`numpy.ndarray`
+    """
+    if sorted_keys is None:
+        sorted_keys = sorted(dct)
+    return np.fromiter((dct[key] for key in sorted_keys),
+                       dtype=dtype)
+
+
 def dataframe_to_dict(df, cols):
     """
 
@@ -105,7 +132,7 @@ def dissim_measure(v1, v2):
     return np.linalg.norm(v1 - v2)
 
 
-def distribute_regions_among_components(n_regions, graph):
+def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not needed
     """
 
     Parameters
@@ -124,7 +151,7 @@ def distribute_regions_among_components(n_regions, graph):
         Each value is an `int` defining the number of regions in the key
         component.
     """
-    print("distribute_regions_among_components got a ", type(graph))
+    print("distribute_regions_among_components_nx got a ", type(graph))
     if len(graph) < 1:
         raise ValueError("There must be at least one area.")
     if len(graph) < n_regions:
@@ -232,33 +259,100 @@ def objective_func_list(regions, attr):
     return obj_val
 
 
-def generate_initial_sol(w, n_regions):
+def distribute_regions_among_components(component_labels, n_regions):
+    r"""
+
+    Parameters
+    ----------
+    component_labels : list
+        Each element specifies to which connected component an area belongs.
+        An example would be [0, 0, 1, 0, 0, 1] for the following two islands:
+        island one      island two
+        .-------.         .---.
+        | 0 | 1 |         | 2 |
+        |-------|         |---|
+        | 3 | 4 |         | 5 |
+        `-------'         `---'
+
+    n_regions : int
+
+    Returns
+    -------
+    result_dict : Dict[int, int]
+        Each key is a label of a connected component. Each value specifies into
+        how many regions the component is to be clustered.
+    """
+    # copy list to avoid manipulating callers list instance
+    component_labels = list(component_labels)
+    n_regions_to_distribute = n_regions
+    components = set(component_labels)
+    if len(components) == 1:
+        return {0: n_regions}
+    result_dict = {}
+    # make sure each connected component has at least one region assigned to it
+    for comp in components:
+        component_labels.remove(comp)
+        result_dict[comp] = 1
+        n_regions_to_distribute -= 1
+    # distribute the rest of the regions to random components with bigger
+    # components being likely to get more regions assigned to them
+    while n_regions_to_distribute > 0:
+        position = random.randrange(len(component_labels))
+        picked_comp = component_labels.pop(position)
+        result_dict[picked_comp] += 1
+        n_regions_to_distribute -= 1
+    return result_dict
+
+
+def generate_initial_sol(adj, n_regions):
     """
     Generate a random initial clustering.
 
     Parameters
     ----------
-    w : :class:`libpysal.weights.weights.W`
+    adj : :class:`scipy.sparse.csr_matrix`
 
     n_regions : int
 
     Yields
     ------
-    result : `dict`
-        Each key must be an area and each value must be the corresponding
-        region-ID. The dict's keys are a connected component of the graph
-        provided to the function.
+    result : :class:`numpy.ndarray`
+        An array with -1 for areas which are not part of the yielded
+        component and an integer >= 0 specifying the region of areas within the
+        yielded component.
     """
-    graph = w.to_networkx()
-    n_regions_per_comp = distribute_regions_among_components(
-            n_regions, graph)
-    for comp, n_regions_in_comp in n_regions_per_comp.items():
-        comp_adj = nx.to_scipy_sparse_matrix(comp)
-        labels = randomly_divide_connected_graph(comp_adj, n_regions_in_comp)
-        yield {area: region for area, region in zip(comp.nodes(), labels)}
+    # check args
+    n_areas = adj.shape[0]
+    if n_areas == 0:
+        raise ValueError("There must be at least one area.")
+    if n_areas < n_regions:
+        raise ValueError("The number of regions ({}) must be "
+                         "less than or equal to the number of areas "
+                         "({}).".format(n_regions, n_areas))
+    if n_regions == 1:
+        yield {area: 0 for area in range(n_areas)}
+        return
+
+    n_comps, comp_labels = cg.connected_components(adj)
+    if n_comps > n_regions:
+            raise ValueError("The number of regions ({}) must not be "
+                             "less than the number of connected components "
+                             "({}).".format(n_regions, n_comps))
+    n_regions_per_comp = distribute_regions_among_components(comp_labels,
+                                                             n_regions)
+
+    for comp_label, n_regions_in_comp in n_regions_per_comp.items():
+        region_labels = -np.ones(len(comp_labels), dtype=np.int32)
+        in_comp = comp_labels == comp_label
+        comp_adj = adj[in_comp]
+        comp_adj = comp_adj[:, in_comp]
+        region_labels_comp = _randomly_divide_connected_graph(
+                comp_adj, n_regions_in_comp)
+        region_labels[in_comp] = region_labels_comp
+        yield region_labels
 
 
-def randomly_divide_connected_graph(adj, n_regions):
+def _randomly_divide_connected_graph(adj, n_regions):
     """
     Divide the provided connected graph into `n_regions` regions.
 
@@ -282,7 +376,7 @@ def randomly_divide_connected_graph(adj, n_regions):
     >>> # 10x10 adjacency matrix representing the path 0-1-2-...-9-10
     >>> adj = diags([adj_diagonal, adj_diagonal], offsets=[-1, 1])
     >>> n_regions_desired = 4
-    >>> labels = randomly_divide_connected_graph(adj, n_regions_desired)
+    >>> labels = _randomly_divide_connected_graph(adj, n_regions_desired)
     >>> n_regions_obtained = len(set(labels))
     >>> n_regions_desired == n_regions_obtained
     True
@@ -290,9 +384,10 @@ def randomly_divide_connected_graph(adj, n_regions):
     if not n_regions > 0:
         msg = "n_regions is {} but must be positive.".format(n_regions)
         raise ValueError(msg)
-    if not n_regions <= adj.shape[0]:
+    n_areas = adj.shape[0]
+    if not n_regions <= n_areas:
         msg = "n_regions is {} but must less than or equal to " + \
-              "the number of nodes which is {}".format(n_regions, adj.shape[0])
+              "the number of nodes which is {}".format(n_regions, n_areas)
         raise ValueError(msg)
     mst = cg.minimum_spanning_tree(adj)
     for _ in range(n_regions - 1):
@@ -309,7 +404,6 @@ def randomly_divide_connected_graph(adj, n_regions):
             mst_copy.eliminate_zeros()
             labels = cg.connected_components(mst_copy, directed=False)[1]
             max_size = max(np.unique(labels, return_counts=True)[1])
-            print(max_size)
             if max_size < max_region_size:
                 best_link = (i, j)
                 max_region_size = max_size
@@ -318,7 +412,7 @@ def randomly_divide_connected_graph(adj, n_regions):
     return cg.connected_components(mst)[1]
 
 
-def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):
+def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):  # todo: rm if not needed
     """
 
     Parameters
@@ -339,7 +433,7 @@ def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):
         region-ID. The dict's keys are a connected component of the graph
         provided to the function.
     """
-    n_regions_per_comp = distribute_regions_among_components(
+    n_regions_per_comp = distribute_regions_among_components_nx(
             n_regions, graph)
     print("step 1")
     # step 1: generate a random zoning system of n_regions regions
@@ -397,19 +491,15 @@ def copy_func(f):
     return g
 
 
-def assert_feasible(regions, graph, n_regions=None):
+def assert_feasible(solution, adj, n_regions=None):
     """
 
     Parameters
     ----------
-    regions : `dict` or `list`
-        If `dict`, then each key is an area and each value the corresponding
-        region.
-        If `list`, then each list element is a `set` of areas representing one
-        region.
-    graph : :class:`networkx.Graph`
-        A :class:`networkx.Graph` representing areas as nodes. Bordering areas
-        are connected by a an edge in the graph.
+    solution : :class:`numpy.ndarray`
+        Array of region labels.
+    adj : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix representing the contiguity relation.
     n_regions : `int` or `None`
         An `int` represents the desired number of regions.
         If `None`, then the number of regions is not checked.
@@ -421,37 +511,38 @@ def assert_feasible(regions, graph, n_regions=None):
         Given the `n_regions` argument is not `None`, a `ValueError` is raised
         also if the number of regions is not equal to the `n_regions` argument.
     """
-    if isinstance(regions, dict):
-        regions_list = dict_to_region_list(regions)
-    else:
-        regions_list = regions
-
     if n_regions is not None:
-        if len(regions_list) != n_regions:
-            raise ValueError("The number of regions is " +
-                             str(len(regions_list)) +
-                             " but should be " + str(n_regions))
-    for region in regions_list:
-        if not nx.is_connected(graph.subgraph(region)):
-            raise ValueError("Region " + str(region) + " is not spatially "
-                             "contiguous.")
+        if len(set(solution)) != n_regions:
+            raise ValueError("The number of regions is {} but "
+                             "should be {}".format(len(solution), n_regions))
+    for region_label in set(solution):
+        _, comp_labels = cg.connected_components(adj)
+        # check whether equal region_label implies equal comp_label
+        comp_labels_in_region = comp_labels[solution == region_label]
+        if not all_elements_equal(comp_labels_in_region):
+            raise ValueError("Region {} is not spatially "
+                             "contiguous.".format(region_label))
 
 
-def separate_components(region_dict, graph):
+def all_elements_equal(array):
+    return np.max(array) == np.min(array)
+
+
+def separate_components(adj, solution):
     """
 
     Parameters
     ----------
-    region_dict : `dict`
-
-    graph : :class:`networkx.Graph`
-
+    adj : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix representing the contiguity relation.
+    solution : :class:`numpy.ndarray`
 
     Yields
     ------
     comp_dict : `dict`
-        Dictionary representing the clustering of a connected component in the
-        graph passed as argument.
+        Each yielded dict represents one connected component of the graph
+        specified by the `adj` argument. In a yielded dict, each key is an area
+        and each value is the corresponding region-ID.
 
     Examples
     --------
@@ -464,20 +555,27 @@ def separate_components(region_dict, graph):
     ...                  (8, 9)]                  # 8 | 9
     >>>
     >>> graph = nx.Graph(edges_island1 + edges_island2)
+    >>> adj = nx.to_scipy_sparse_matrix(graph)
     >>>
     >>> # island 1: island divided into regions 0, 1, and 2
-    >>> regions_dict = {area: area%3 for area in range(6)}
+    >>> sol_island1 = [area%3 for area in range(6)]
     >>> # island 2: all areas are in region 3
-    >>> regions_dict.update({area: 3 for area in range(6, 10)})
+    >>> sol_island2 = [3 for area in range(6, 10)]
+    >>> solution = np.array(sol_island1 + sol_island2)
     >>>
-    >>> yielded = list(separate_components(regions_dict, graph))
-    >>> yielded == [{0: 0, 1: 1, 2: 2, 3: 0, 4: 1, 5: 2},
-    ...             {8: 3, 9: 3, 6: 3, 7: 3}]
+    >>> yielded = list(separate_components(adj, solution))
+    >>> yielded.sort(key=lambda arr: arr[0], reverse=True)
+    >>> (yielded[0] == np.array([0, 1, 2, 0, 1, 2, -1, -1, -1, -1])).all()
     True
-
+    >>> (yielded[1] == np.array([-1, -1, -1, -1, -1, -1, 3, 3, 3, 3])).all()
+    True
     """
-    for comp in nx.connected_component_subgraphs(graph):
-        yield {area: region_dict[area] for area in comp.nodes()}
+    n_comps, comp_labels = cg.connected_components(adj)
+    for comp in set(comp_labels):
+        region_labels = -np.ones(len(comp_labels), dtype=np.int32)
+        in_comp = comp_labels == comp
+        region_labels[in_comp] = solution[in_comp]
+        yield region_labels
 
 
 def random_element_from(lst):
