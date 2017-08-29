@@ -1,16 +1,14 @@
 import abc
-import numbers
-
 import math
+import numbers
 import random
 
-from region import util
 from region.util import objective_func
 
 
 class AllowMoveStrategy(abc.ABC):
     @abc.abstractmethod
-    def __call__(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph):  # todo: remove `graph` arg and introduce __init__ with `adj` arg (as in :class:`AllowMoveAZPMaxPRegions` in this file)
         """
 
         Parameters
@@ -21,7 +19,7 @@ class AllowMoveStrategy(abc.ABC):
 
         to_region : `set`
 
-        graph : :class:`networkx`
+        graph : :class:`networkx.Graph`
 
         Returns
         -------
@@ -123,36 +121,38 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     the recipient region is necessary in case there is an area with a negative
     spatially extensive attribute.
     """
-    def __init__(self, areas_gdf, spatially_extensive_attr, threshold,
+    def __init__(self, adj, spatially_extensive_attr, threshold,
                  decorated_strategy):
         """
 
         Parameters
         ----------
-        areas_gdf : :class:`GeoDataFrame`
+        adj : :class:`scipy.sparse.csr_matrix`
 
-        spatially_extensive_attr : `str`
+        spatially_extensive_attr : :class:`numpy.ndarray`
 
         threshold : `float`
 
         decorated_strategy : :class:`AllowMoveStrategy`
 
         """
-        self.spatially_extensive_attr_dict = util.dataframe_to_dict(
-            areas_gdf, spatially_extensive_attr)
+        self.adj = adj
+        self.spatially_extensive_attr = spatially_extensive_attr
         self.threshold = threshold
         self._decorated_strategy = decorated_strategy
 
     def __call__(self, moving_area, donor_region, recipient_region, graph):
-        donor_sum = sum(self.spatially_extensive_attr_dict[area]
+        donor_sum = sum(self.spatially_extensive_attr[area]
                         for area in donor_region if area is not moving_area)
         threshold_reached_donor = donor_sum >= self.threshold
-        recipient_sum = sum(self.spatially_extensive_attr_dict[area]
+
+        recipient_sum = sum(self.spatially_extensive_attr[area]
                             for area in recipient_region) \
-            + self.spatially_extensive_attr_dict[moving_area]
+            + self.spatially_extensive_attr[moving_area]
         threshold_reached_recipient = recipient_sum >= self.threshold
 
         if threshold_reached_donor and threshold_reached_recipient:
+            # todo: refactor to use sparse matrix instead of networkx graph:
             return self._decorated_strategy(moving_area, donor_region,
                                             recipient_region, graph)
         return False

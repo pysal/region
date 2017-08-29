@@ -10,6 +10,9 @@ import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
 
 
+Move = collections.namedtuple("move", "area from_idx to_idx")
+
+
 def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
     """
     Return values of the dictionary passed as `dct` argument as an numpy array.
@@ -35,6 +38,10 @@ def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
         sorted_keys = sorted(dct)
     return np.fromiter((dct[key] for key in sorted_keys),
                        dtype=dtype)
+
+
+def array_from_region_list(region_list):  # todo: remove after refactoring (use sparse matrices and arrays instead of graphs and region_lists)
+    return array_from_dict_values(region_list_to_dict(region_list))
 
 
 def dataframe_to_dict(df, cols):
@@ -218,6 +225,24 @@ def objective_func(region_list, graph, attr="data"):
                if i < j)
 
 
+def objective_func_arr(regions_arr, attr):
+    """
+
+    Parameters
+    ----------
+    regions_arr : :class:`numpy.ndarray`
+        Region labels.
+    attr : :class:`numpy.ndarray`
+
+    """
+    regions_set = set(regions_arr)
+    obj_val = sum(dissim_measure(attr[i], attr[j])
+                  for r in regions_set
+                  for i, j in
+                  itertools.combinations((regions_arr == r).nonzero(), 2))
+    return obj_val
+
+
 def objective_func_dict(regions, attr):
     """
 
@@ -253,6 +278,7 @@ def objective_func_list(regions, attr):
         The objective value is the total heterogeneity (sum of each region's
         heterogeneity).
     """
+    print("regions in objective_func_list:", regions)
     obj_val = sum(dissim_measure(attr[i], attr[j])
                   for r in regions
                   for i, j in itertools.combinations(r, 2))

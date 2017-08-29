@@ -1,7 +1,7 @@
 import abc
+from collections import deque
 import math
 import random
-from collections import deque, namedtuple
 
 import numpy as np
 import networkx as nx
@@ -11,13 +11,10 @@ from region import fit_functions
 from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
-from region.util import find_sublist_containing,make_move, objective_func,\
-                        dict_to_region_list, assert_feasible, \
+from region.util import find_sublist_containing, Move, make_move, \
+                        objective_func, dict_to_region_list, assert_feasible, \
                         separate_components, generate_initial_sol, copy_func, \
                         array_from_dict_values
-
-
-Move = namedtuple("move", "area from_idx to_idx")
 
 
 class AZP:
