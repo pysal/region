@@ -7,10 +7,10 @@ from scipy import sparse as sp
 from region import fit_functions
 from region.p_regions.azp import AZP
 from region.p_regions.azp_util import AllowMoveAZPMaxPRegions
-from region.util import dissim_measure, find_sublist_containing, \
-                        random_element_from, pop_randomly_from,\
-                        array_from_dict_values, array_from_region_list, \
-                        objective_func_arr
+from region.util import find_sublist_containing, random_element_from,\
+                        pop_randomly_from,array_from_dict_values,\
+                        array_from_region_list, objective_func_arr, \
+                        set_distance_metric, raise_distance_metric_not_set
 
 
 class MaxPHeu:
@@ -34,9 +34,10 @@ class MaxPHeu:
         self.local_search = local_search
         self.random_state = random_state
         random.seed(random_state)
+        self.distance_metric = raise_distance_metric_not_set
 
     def fit_from_dict(self, neighbor_dict, attr, spatially_extensive_attr,
-                      threshold, max_it=10):
+                      threshold, max_it=10, distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -59,6 +60,9 @@ class MaxPHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         n_areas = len(neighbor_dict)
         adj = sp.dok_matrix((n_areas, n_areas))
@@ -72,10 +76,12 @@ class MaxPHeu:
                                           array_from_dict_values(attr,
                                                                  sorted_areas),
                                           spatially_extensive_attr, threshold,
-                                          max_it=max_it)
+                                          max_it=max_it,
+                                          distance_metric=distance_metric)
 
     def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
-                              threshold, max_it=10, contiguity="rook"):
+                              threshold, max_it=10,
+                              distance_metric="euclidean", contiguity="rook"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -98,6 +104,9 @@ class MaxPHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         contiguity : {"rook", "queen"}, default: "rook"
             See corresponding argument in
             :func:`region.fit_functions.fit_from_geodataframe`.
@@ -105,10 +114,11 @@ class MaxPHeu:
         fit_functions.fit_from_geodataframe(self, gdf, attr,
                                             spatially_extensive_attr,
                                             threshold, max_it=max_it,
+                                            distance_metric=distance_metric,
                                             contiguity=contiguity)
 
     def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
-                          threshold, max_it=10):
+                          threshold, max_it=10, distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -130,13 +140,18 @@ class MaxPHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = nx.to_scipy_sparse_matrix(graph)
         self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
-                                          threshold, max_it=max_it)
+                                          threshold, max_it=max_it,
+                                          distance_metric=distance_metric)
 
     def fit_from_scipy_sparse_matrix(self, adj, attr, spatially_extensive_attr,
-                                     threshold, max_it=10):
+                                     threshold, max_it=10,
+                                     distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -156,7 +171,11 @@ class MaxPHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
+        set_distance_metric(self, distance_metric)
         weights = ps.weights.weights.WSP(adj).to_W()
         areas_dict = weights.neighbors
 
@@ -198,14 +217,15 @@ class MaxPHeu:
                     initial_sol=array_from_region_list(partition))
             partition = self.local_search.labels_
             print("optimized partition", partition)
-            obj_value = objective_func_arr(partition, attr)
+            obj_value = objective_func_arr(self.distance_metric, partition,
+                                           attr)
             if obj_value < best_obj_value:
                 best_obj_value = obj_value
                 best_partition = partition
         self.labels_ = best_partition
 
     def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
-                   max_it=10):
+                   max_it=10, distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -227,10 +247,14 @@ class MaxPHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = w.sparse
         self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
-                                          threshold, max_it=max_it)
+                                          threshold, max_it=max_it,
+                                          distance_metric=distance_metric)
 
     def grow_regions(self, adj, attr, spatially_extensive_attr, threshold):
         """
@@ -313,8 +337,7 @@ class MaxPHeu:
         print("grow_regions produced", partition, "- enclaves:", enclave_areas)
         return partition, enclave_areas
 
-    @staticmethod
-    def find_best_area(region, candidates, attr):
+    def find_best_area(self, region, candidates, attr):
         """
 
         Parameters
@@ -333,7 +356,7 @@ class MaxPHeu:
             An element of `candidates` with minimal dissimilarity when being
             moved to the region `region`.
         """
-        candidates = {area: sum(dissim_measure(attr[area], attr[area2])
+        candidates = {area: sum(self.distance_metric(attr[area], attr[area2])
                                 for area2 in region)
                       for area in candidates}
         best_candidates = [area for area in candidates
@@ -384,8 +407,7 @@ class MaxPHeu:
             enclave_areas.remove(area)
         return partition
 
-    @staticmethod
-    def find_best_region_idx(area, partition, candidate_regions_idx, attr):
+    def find_best_region_idx(self, area, partition, candidate_regions_idx, attr):
         """
 
         Parameters
@@ -408,7 +430,7 @@ class MaxPHeu:
             sum of dissimilarities after area `area` is moved to the region.
         """
         dissim_per_idx = {region_idx:
-                          sum(dissim_measure(attr[area], attr[area2])
+                          sum(self.distance_metric(attr[area], attr[area2])
                               for area2 in partition[region_idx])
                           for region_idx in candidate_regions_idx}
         minimum_dissim = min(dissim_per_idx.values())

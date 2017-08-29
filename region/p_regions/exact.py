@@ -5,7 +5,8 @@ from pulp import LpProblem, LpMinimize, LpVariable, LpInteger, lpSum
 
 from region import fit_functions
 from region.fit_functions import check_solver, get_solver_instance
-from region.util import dissim_measure, find_sublist_containing, copy_func
+from region.util import find_sublist_containing, copy_func, \
+    raise_distance_metric_not_set, set_distance_metric
 
 
 class ClusterExact:
@@ -36,8 +37,11 @@ class ClusterExact:
         self.labels_ = None
         self.method_ = None
         self.solver_ = None
+        self.distance_metric = raise_distance_metric_not_set
 
-    def fit_from_dict(self, neighbors_dict, data, method="flow", solver="cbc"):
+
+    def fit_from_dict(self, neighbors_dict, data, method="flow", solver="cbc",
+                      distance_metric="euclidean"):
         """\
         Parameters
         ----------
@@ -64,7 +68,11 @@ class ClusterExact:
             * "cplex" - the CPLEX solver
             * "glpk" - the GLPK (GNU Linear Programming Kit) solver
             * "gurobi" - the Gurobi Optimizer
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
+        set_distance_metric(self, distance_metric)
         self._check_method(method)
         check_solver(solver)
 
@@ -85,7 +93,7 @@ class ClusterExact:
                     "order": _order,
                     "tree": _tree}[method.lower()]
         result_dict = opt_func(neighbors_dict, values_dict, self.n_regions,
-                               solver)
+                               solver, self.distance_metric)
         self.labels_ = result_dict
         self.method_ = method
         self.solver_ = solver
@@ -95,7 +103,7 @@ class ClusterExact:
                   + fit_from_dict.__doc__
 
     def fit_from_geodataframe(self, areas, data, method="flow", solver="cbc",
-                              contiguity="rook"):
+                              distance_metric="euclidean", contiguity="rook"):
         """
 
         Parameters
@@ -113,13 +121,17 @@ class ClusterExact:
         contiguity : str
             See the corresponding argument in
             :func:`region.fit_functions.fit_from_geodataframe`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         fit_functions.fit_from_geodataframe(self, areas, data, method, solver,
+                                            distance_metric=distance_metric,
                                             contiguity=contiguity)
 
-    def fit_from_networkx(self, areas, data, method="flow", solver="cbc"):
+    def fit_from_networkx(self, areas, data, method="flow", solver="cbc",
+                          distance_metric="euclidean"):
         """
-
         Parameters
         ----------
         areas : `networkx.Graph`
@@ -142,12 +154,16 @@ class ClusterExact:
             See the corresponding argument in :meth:`fit_from_dict`.
         solver : str
             See the corresponding argument in :meth:`fit_from_dict`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
-        fit_functions.fit_from_networkx(self, areas, data, method, solver)
+        fit_functions.fit_from_networkx(self, areas, data, method, solver,
+                                        distance_metric=distance_metric)
 
-    def fit_from_w(self, areas, data, method="flow", solver="cbc"):
+    def fit_from_w(self, areas, data, method="flow", solver="cbc",
+                   distance_metric="euclidean"):
         """
-
         Parameters
         ----------
         areas : libpysal.weights.W
@@ -158,8 +174,12 @@ class ClusterExact:
             See the corresponding argument in :meth:`fit_from_dict`.
         solver : str
             See the corresponding argument in :meth:`fit_from_dict`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
-        fit_functions.fit_from_w(self, areas, data, method, solver)
+        fit_functions.fit_from_w(self, areas, data, method, solver,
+                                 distance_metric=distance_metric)
 
     @staticmethod
     def _check_method(method):
@@ -169,7 +189,7 @@ class ClusterExact:
                              ' strings: "flow", "order", or "tree".')
 
 
-def _flow(neighbor_dict, data, n_regions, solver):
+def _flow(neighbor_dict, data, n_regions, solver, distance_metric):
     """
     Parameters
     ----------
@@ -182,6 +202,7 @@ def _flow(neighbor_dict, data, n_regions, solver):
         The number of regions the areas are clustered into.
     solver : str
         See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
+    distance_metric : function
 
     Returns
     -------
@@ -200,7 +221,7 @@ def _flow(neighbor_dict, data, n_regions, solver):
           for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
-    d = {(i, j): dissim_measure(data[i], data[j])
+    d = {(i, j): distance_metric(data[i], data[j])
          for i, j in II_upper_triangle}
 
     # Decision variables
@@ -276,7 +297,7 @@ def _flow(neighbor_dict, data, n_regions, solver):
     return result
 
 
-def _order(neighbor_dict, data, n_regions, solver):
+def _order(neighbor_dict, data, n_regions, solver, distance_metric):
     """
     Parameters
     ----------
@@ -289,6 +310,7 @@ def _order(neighbor_dict, data, n_regions, solver):
         The number of regions the areas are clustered into.
     solver : str
         See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
+    distance_metric : function
 
     Returns
     -------
@@ -308,7 +330,7 @@ def _order(neighbor_dict, data, n_regions, solver):
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
     O = range(n - n_regions)  # index for orders
-    d = {(i, j): dissim_measure(data[i], data[j])
+    d = {(i, j): distance_metric(data[i], data[j])
          for i, j in II_upper_triangle}
 
     # Decision variables
@@ -360,7 +382,7 @@ def _order(neighbor_dict, data, n_regions, solver):
     return result
 
 
-def _tree(neighbor_dict, data, n_regions, solver):
+def _tree(neighbor_dict, data, n_regions, solver, distance_metric):
     """
     Parameters
     ----------
@@ -373,6 +395,7 @@ def _tree(neighbor_dict, data, n_regions, solver):
         The number of regions the areas are clustered into.
     solver : str
         See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
+    distance_metric : function
 
     Returns
     -------
@@ -390,7 +413,7 @@ def _tree(neighbor_dict, data, n_regions, solver):
           for i in I
           for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
-    d = {(i, j): dissim_measure(data[i], data[j])
+    d = {(i, j): distance_metric(data[i], data[j])
          for i, j in II}
     # Decision variables
     t = LpVariable.dicts(

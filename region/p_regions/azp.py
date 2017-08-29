@@ -14,7 +14,7 @@ from region.p_regions.azp_util import AllowMoveStrategy, \
 from region.util import find_sublist_containing, Move, make_move, \
                         objective_func, dict_to_region_list, assert_feasible, \
                         separate_components, generate_initial_sol, copy_func, \
-                        array_from_dict_values
+                        array_from_dict_values, set_distance_metric
 
 
 class AZP:
@@ -46,8 +46,11 @@ class AZP:
         else:
             raise ValueError(wrong_allow_move_arg_msg)
 
+        self.distance_metric = None
+
     def fit_from_scipy_sparse_matrix(self, adj, data, n_regions,
-                                     initial_sol=None):
+                                     initial_sol=None,
+                                     distance_metric="euclidean"):
         """
         Perform the AZP algorithm as described in [OR1995]_ and assign the
         resulting region labels to the instance's :attr:`labels_` attribute.
@@ -62,7 +65,11 @@ class AZP:
             Number of desired regions.
         initial_sol : :class:`numpy.ndarray`
             Array of labels.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
+        set_distance_metric(self, distance_metric)
         # step 1
         if initial_sol is not None:
             assert_feasible(initial_sol, adj, n_regions)
@@ -95,7 +102,8 @@ class AZP:
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_w(self, w, data, n_regions, initial_sol=None):
+    def fit_from_w(self, w, data, n_regions, initial_sol=None,
+                   distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -109,11 +117,16 @@ class AZP:
             Number of desired regions.
         initial_sol : :class:`numpy.ndarray`
             Array of labels.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = w.sparse
-        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol)
+        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
+                                          distance_metric=distance_metric)
 
-    def fit_from_networkx(self, graph, data, n_regions, initial_sol=None):
+    def fit_from_networkx(self, graph, data, n_regions, initial_sol=None,
+                          distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -127,12 +140,15 @@ class AZP:
             Number of desired regions.
         initial_sol : :class:`numpy.ndarray`
             Array of labels.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = nx.to_scipy_sparse_matrix(graph)
         self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol)
 
     def fit_from_geodataframe(self, gdf, data, n_regions, contiguity="rook",
-                              initial_sol=None):
+                              initial_sol=None, distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -151,12 +167,17 @@ class AZP:
             :func:`region.fit_functions.fit_from_geodataframe`.
         initial_sol : :class:`numpy.ndarray`
             Array of labels.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         fit_functions.fit_from_geodataframe(self, gdf, data, n_regions,
                                             contiguity=contiguity,
-                                            initial_sol=initial_sol)
+                                            initial_sol=initial_sol,
+                                            distance_metric=distance_metric)
 
-    def fit_from_dict(self, neighbor_dict, data, n_regions, initial_sol=None):
+    def fit_from_dict(self, neighbor_dict, data, n_regions, initial_sol=None,
+                      distance_metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -173,6 +194,9 @@ class AZP:
         initial_sol : `dict`
             Each key represents an area. Each value represents the region, the
             corresponding area is assigned to initially.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         n_areas = len(neighbor_dict)
         adj = sp.dok_matrix((n_areas, n_areas))
@@ -188,7 +212,8 @@ class AZP:
         self.fit_from_scipy_sparse_matrix(adj,
                                           array_from_dict_values(data,
                                                                  sorted_areas),
-                                          n_regions, initial_sol)
+                                          n_regions, initial_sol,
+                                          distance_metric=distance_metric)
 
     def _azp_connected_component(self, adj, initial_clustering, data):
         """
@@ -223,7 +248,7 @@ class AZP:
         # todo: rm print-statements
         print("Init with: ", initial_clustering)
         obj_val_start = float("inf")  # since Python 3.5 math.inf also possible
-        obj_val_end = objective_func(region_list, graph)
+        obj_val_end = objective_func(self.distance_metric, region_list, graph)
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
             print("obj_val:", obj_val_start, "-->", obj_val_end,
@@ -283,15 +308,17 @@ class AZP:
                         cand_region_idx = candidates[cand]
                         cand_region = region_list_copy[candidates[cand]]
                         del candidates[cand]
-                        if self.allow_move_strategy(
-                                cand, cand_region, region, graph):
+                        if self.allow_move_strategy(cand, cand_region, region,
+                                                    graph,
+                                                    self.distance_metric):
                             make_move(cand, cand_region_idx, region_idx,
                                       region_list_copy)
                             break
                     else:
                         break
 
-            obj_val_end = objective_func(region_list_copy, graph)
+            obj_val_end = objective_func(self.distance_metric,
+                                         region_list_copy, graph)
         print("RETURN: ", region_list_copy)
         return region_list_copy
 
@@ -328,7 +355,8 @@ class AZPSimulatedAnnealing:
 
     def fit_from_geodataframe(self, gdf, data, n_regions,
                               contiguity="rook",initial_sol=None,
-                              cooling_factor=0.85):
+                              cooling_factor=0.85,
+                              distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -350,13 +378,17 @@ class AZPSimulatedAnnealing:
         cooling_factor : float
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         fit_functions.fit_from_geodataframe(
                 self, gdf, data, n_regions, contiguity=contiguity,
-                initial_sol=initial_sol, cooling_factor=cooling_factor)
+                initial_sol=initial_sol, cooling_factor=cooling_factor,
+                distance_metric=distance_metric)
 
     def fit_from_dict(self, neighbor_dict, data, n_regions, initial_sol=None,
-                      cooling_factor=0.85):
+                      cooling_factor=0.85, distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -371,6 +403,9 @@ class AZPSimulatedAnnealing:
         cooling_factor : float
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         n_areas = len(neighbor_dict)
         adj = sp.dok_matrix((n_areas, n_areas))
@@ -388,10 +423,11 @@ class AZPSimulatedAnnealing:
                 array_from_dict_values(data, sorted_areas),
                 n_regions,
                 initial_sol=initial_sol,
-                cooling_factor=cooling_factor)
+                cooling_factor=cooling_factor,
+                distance_metric=distance_metric)
 
     def fit_from_networkx(self, graph, data, n_regions, initial_sol=None,
-                          cooling_factor=0.85):
+                          cooling_factor=0.85, distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -406,13 +442,18 @@ class AZPSimulatedAnnealing:
         cooling_factor : float
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = nx.to_scipy_sparse_matrix(graph)
         self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
-                                          cooling_factor=cooling_factor)
+                                          cooling_factor=cooling_factor,
+                                          distance_metric=distance_metric)
 
     def fit_from_scipy_sparse_matrix(self, adj, data, n_regions,
-                                     initial_sol=None, cooling_factor=0.85):
+                                     initial_sol=None, cooling_factor=0.85,
+                                     distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -431,6 +472,9 @@ class AZPSimulatedAnnealing:
         cooling_factor : float
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         if not (0 < cooling_factor < 1):
             raise ValueError("The cooling_factor argument must be greater "
@@ -450,7 +494,8 @@ class AZPSimulatedAnnealing:
                 it += 1
                 old_sol = initial_sol
                 self.azp.fit_from_scipy_sparse_matrix(adj, data, n_regions,
-                                                      initial_sol)
+                                                      initial_sol,
+                                                      distance_metric)
                 initial_sol = self.azp.labels_
 
                 print("old_sol", old_sol)
@@ -486,7 +531,7 @@ class AZPSimulatedAnnealing:
         self.labels_ = initial_sol
 
     def fit_from_w(self, w, data, n_regions, initial_sol=None,
-                   cooling_factor=0.85):
+                   cooling_factor=0.85, distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -501,10 +546,14 @@ class AZPSimulatedAnnealing:
         cooling_factor : float
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         adj = w.sparse
         self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
-                                          cooling_factor=cooling_factor)
+                                          cooling_factor=cooling_factor,
+                                          distance_metric=distance_metric)
 
     def sa_moves_alert(self):
         self.min_sa_moves_reached = True
@@ -525,13 +574,13 @@ class AZPTabu(AZP, abc.ABC):
         to_region = region_list[to_idx]
         # before move
         objval_before = objective_func(
-                [from_region, to_region], graph)
+                self.distance_metric, [from_region, to_region], graph)
         # after move
         region_of_cand_after = from_region.copy()
         region_of_cand_after.remove(area)
         objval_after = objective_func(
-            [region_of_cand_after,
-             to_region.union({area})], graph)
+                self.distance_metric,
+                [region_of_cand_after, to_region.union({area})], graph)
         return objval_after - objval_before
 
 
@@ -574,7 +623,8 @@ class AZPBasicTabu(AZPTabu):
                       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
             visited.append(region_set)
             print("=" * 45)
-            obj_val_end = objective_func(region_list, graph)
+            obj_val_end = objective_func(self.distance_metric, region_list,
+                                         graph)
             print("obj_value:", obj_val_end)
             print(region_list)
             print("-" * 35)
@@ -681,7 +731,8 @@ class AZPReactiveTabu(AZPTabu):
         for it in range(self.maxit):
             print("=" * 45)
             print(region_list)
-            obj_val_end = objective_func(region_list, graph)
+            obj_val_end = objective_func(self.distance_metric, region_list,
+                                         graph)
             print("obj_value:", obj_val_end)
             if not obj_val_end < obj_val_start:
                 break  # step 12

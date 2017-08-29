@@ -8,6 +8,7 @@ import scipy.sparse.csgraph as cg
 import numpy as np
 import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
+from sklearn.metrics.pairwise import distance_metrics
 
 
 Move = collections.namedtuple("move", "area from_idx to_idx")
@@ -124,19 +125,49 @@ def find_sublist_containing(el, lst, index=False):
             "{} not found in any of the sublists of {}".format(el, lst))
 
 
-def dissim_measure(v1, v2):
+def set_distance_metric(instance, metric):  # todo: move to classes (AZP, MaxPHeu,...) or to a new base class
     """
+    Save the distance metric function specified by the `metric` argument as
+    `distance_metric` attribute in the object passed as `instance` argument.
+
     Parameters
     ----------
-    v1 : Union[`float`, :class:`ndarray`]
-    v2 : Union[`float`, :class:`ndarray`]
+    instance : object
 
-    Returns
-    -------
-    result : `float`
-        The dissimilarity between the values v1 and v2.
+    metric : str or function, default: "euclidean"
+        If str, then this string specifies the distance metric (from
+        scikit-learn) to use for calculating the objective function.
+        Possible values are:
+
+        * "cityblock" for sklearn.metrics.pairwise.manhattan_distances
+        * "cosine" for sklearn.metrics.pairwise.cosine_distances
+        * "euclidean" for sklearn.metrics.pairwise.euclidean_distances
+        * "l1" for sklearn.metrics.pairwise.manhattan_distances
+        * "l2" for sklearn.metrics.pairwise.euclidean_distances
+        * "manhattan" for sklearn.metrics.pairwise.manhattan_distances
+
+        If function, then this function should take two arguments and
+        return a scalar value. Furthermore, the following conditions
+        have to be fulfilled:
+
+        1. d(a, b) >= 0, for all a and b
+        2. d(a, b) == 0, if and only if a = b, positive definiteness
+        3. d(a, b) == d(b, a), symmetry
+        4. d(a, c) <= d(a, b) + d(b, c), the triangle inequality
+
     """
-    return np.linalg.norm(v1 - v2)
+    if isinstance(metric, str):
+        instance.distance_metric = distance_metrics()[metric]
+    elif callable(metric):
+        instance.distance_metric = metric
+    else:
+        raise ValueError("Please specify a distance metric by using a string "
+                         "or a function. A {} was passed as distance "
+                         "metric.".format(type(metric)))
+
+
+def raise_distance_metric_not_set(x, y):
+    raise Exception("distance metric not set!")
 
 
 def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not needed
@@ -216,16 +247,16 @@ def make_move(area, from_idx, to_idx, region_list):
     region_list[to_idx].add(area)
 
 
-def objective_func(region_list, graph, attr="data"):
-    return sum(dissim_measure(graph.node[list(region_list[r])[i]][attr],
-                              graph.node[list(region_list[r])[j]][attr])
+def objective_func(distance_metric, region_list, graph, attr="data"):
+    return sum(distance_metric(graph.node[list(region_list[r])[i]][attr],
+                               graph.node[list(region_list[r])[j]][attr])
                for r in range(len(region_list))
                for i in range(len(region_list[r]))
                for j in range(len(region_list[r]))
                if i < j)
 
 
-def objective_func_arr(regions_arr, attr):
+def objective_func_arr(distance_metric, regions_arr, attr):
     """
 
     Parameters
@@ -236,18 +267,19 @@ def objective_func_arr(regions_arr, attr):
 
     """
     regions_set = set(regions_arr)
-    obj_val = sum(dissim_measure(attr[i], attr[j])
+    obj_val = sum(distance_metric(attr[i], attr[j])
                   for r in regions_set
                   for i, j in
                   itertools.combinations((regions_arr == r).nonzero(), 2))
     return obj_val
 
 
-def objective_func_dict(regions, attr):
+def objective_func_dict(distance_metric, regions, attr):
     """
-
     Parameters
     ----------
+    distance_metric : str or function, default: "euclidean"
+        See the `metric` argument in :func:`region.util.set_distance_metric`.
     regions : `dict`
         Each key is an area. Each value is the region it is assigned to.
     attr : `dict`
@@ -259,14 +291,16 @@ def objective_func_dict(regions, attr):
         The objective value is the total heterogeneity (sum of each region's
         heterogeneity).
     """
-    return objective_func_list(dict_to_region_list(regions), attr)
+    return objective_func_list(distance_metric, dict_to_region_list(regions),
+                               attr)
 
 
-def objective_func_list(regions, attr):
+def objective_func_list(distance_metric, regions, attr):
     """
-
     Parameters
     ----------
+    distance_metric : str or function, default: "euclidean"
+        See the `metric` argument in :func:`region.util.set_distance_metric`.
     regions : `list`
         Each list element is an iterable of a region's areas.
     attr : `dict`
@@ -279,7 +313,7 @@ def objective_func_list(regions, attr):
         heterogeneity).
     """
     print("regions in objective_func_list:", regions)
-    obj_val = sum(dissim_measure(attr[i], attr[j])
+    obj_val = sum(distance_metric(attr[i], attr[j])
                   for r in regions
                   for i, j in itertools.combinations(r, 2))
     return obj_val

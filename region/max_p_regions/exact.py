@@ -8,7 +8,8 @@ from pulp import LpProblem, LpMinimize, LpVariable, LpInteger, lpSum
 from region import fit_functions
 from region.fit_functions import check_solver, get_solver_instance, \
     graph_attr_to_dict
-from region.util import dissim_measure, copy_func, dataframe_to_dict
+from region.util import copy_func, dataframe_to_dict, \
+    raise_distance_metric_not_set, set_distance_metric
 
 
 class MaxPExact:
@@ -30,9 +31,10 @@ class MaxPExact:
 
         self.labels_ = None
         self.solver_ = None
+        self.distance_metric = raise_distance_metric_not_set
 
     def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
-                      threshold, solver="cbc"):
+                      threshold, solver="cbc", distance_metric="euclidean"):
         """\
         Parameters
         ----------
@@ -64,7 +66,12 @@ class MaxPExact:
             * "cplex" - the CPLEX solver
             * "glpk" - the GLPK (GNU Linear Programming Kit) solver
             * "gurobi" - the Gurobi Optimizer
+
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
+        set_distance_metric(self, distance_metric)
         check_solver(solver)
 
         if not isinstance(neighbors_dict, dict):
@@ -84,7 +91,7 @@ class MaxPExact:
         n = len(neighbors_dict)
         K = range(n)  # index of potential regions, called k in Duque et al.
         O = range(n)  # index of contiguity order, called c in Duque et al.
-        d = {(i, j): dissim_measure(attr[i], attr[j])
+        d = {(i, j): self.distance_metric(attr[i], attr[j])
              for i, j in II_upper_triangle}
         h = 1 + floor(log10(sum(d[(i, j)] for i, j in II_upper_triangle)))
 
@@ -167,7 +174,8 @@ class MaxPExact:
                   + fit_from_dict.__doc__
 
     def fit_from_geodataframe(self, areas, attr, spatially_extensive_attr,
-                              threshold, solver="cbc", contiguity="rook"):
+                              threshold, solver="cbc",
+                              distance_metric="euclidean", contiguity="rook"):
         """
         Parameters
         ----------
@@ -183,6 +191,9 @@ class MaxPExact:
             See the corresponding argument in :meth:`fit_from_dict`.
         solver : str
             See the corresponding argument in :meth:`fit_from_dict`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         contiguity : {"rook", "queen"}, default: "rook"
             Defines the contiguity relationship between areas. Possible
             contiguity definitions are:
@@ -200,10 +211,12 @@ class MaxPExact:
         fit_functions.fit_from_geodataframe(self, areas, attr,
                                             spatially_extensive_attr,
                                             threshold, solver,
+                                            distance_metric=distance_metric,
                                             contiguity=contiguity)
 
     def fit_from_networkx(self, areas, attr, spatially_extensive_attr,
-                          threshold, solver="cbc"):
+                          threshold, solver="cbc",
+                          distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -240,13 +253,17 @@ class MaxPExact:
             See the corresponding argument in :meth:`fit_from_dict`.
         solver : str
             See the corresponding argument in :meth:`fit_from_dict`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         sp_ext_attr_dict = graph_attr_to_dict(areas, spatially_extensive_attr)
         fit_functions.fit_from_networkx(self, areas, attr, sp_ext_attr_dict,
-                                        threshold, solver)
+                                        threshold, solver,
+                                        distance_metric=distance_metric)
 
     def fit_from_w(self, areas, attr, spatially_extensive_attr, threshold,
-                   solver="cbc"):
+                   solver="cbc", distance_metric="euclidean"):
         """
         Parameters
         ----------
@@ -260,6 +277,10 @@ class MaxPExact:
             See the corresponding argument in :meth:`fit_from_dict`.
         solver : str
             See the corresponding argument in :meth:`fit_from_dict`.
+        distance_metric : str or function, default: "euclidean"
+            See the `metric` argument in
+            :func:`region.util.set_distance_metric`.
         """
         fit_functions.fit_from_w(self, areas, attr, spatially_extensive_attr,
-                                 threshold, solver)
+                                 threshold, solver,
+                                 distance_metric=distance_metric)

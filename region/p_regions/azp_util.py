@@ -8,7 +8,8 @@ from region.util import objective_func
 
 class AllowMoveStrategy(abc.ABC):
     @abc.abstractmethod
-    def __call__(self, moving_area, from_region, to_region, graph):  # todo: remove `graph` arg and introduce __init__ with `adj` arg (as in :class:`AllowMoveAZPMaxPRegions` in this file)
+    def __call__(self, moving_area, from_region, to_region, graph,
+                 distance_metric):  # todo: remove `graph` arg and introduce __init__ with `adj` arg (as in :class:`AllowMoveAZPMaxPRegions` in this file)
         """
 
         Parameters
@@ -21,6 +22,8 @@ class AllowMoveStrategy(abc.ABC):
 
         graph : :class:`networkx.Graph`
 
+        distance_metric : str or function, default: "euclidean"
+
         Returns
         -------
         is_allowed : `bool`
@@ -31,13 +34,15 @@ class AllowMoveStrategy(abc.ABC):
 
 
 class AllowMoveAZP(AllowMoveStrategy):
-    def __call__(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph,
+                 distance_metric):
         # before move
-        obj_val_before = objective_func([from_region, to_region], graph)
+        obj_val_before = objective_func(distance_metric,
+                                        [from_region, to_region], graph)
         # after move
         region_of_cand_after = from_region.copy()
         region_of_cand_after.remove(moving_area)
-        obj_val_after = objective_func(
+        obj_val_after = objective_func(distance_metric,
             [region_of_cand_after, to_region.union({moving_area})], graph)
         if obj_val_after <= obj_val_before:
             return True
@@ -56,13 +61,15 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
         self.minsa = min_sa_moves
         self.sa = 0  # number of SA-moves
 
-    def __call__(self, moving_area, from_region, to_region, graph):
+    def __call__(self, moving_area, from_region, to_region, graph,
+                 distance_metric):
         # before move
-        obj_val_before = objective_func([from_region, to_region], graph)
+        obj_val_before = objective_func(distance_metric,
+                                        [from_region, to_region], graph)
         # after move
         from_region_after = from_region.copy()
         from_region_after.remove(moving_area)
-        obj_val_after = objective_func(
+        obj_val_after = objective_func(distance_metric,
             [from_region_after, to_region.union({moving_area})], graph)
         if obj_val_after <= obj_val_before:
             self.notify_move_made()
@@ -141,7 +148,8 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         self.threshold = threshold
         self._decorated_strategy = decorated_strategy
 
-    def __call__(self, moving_area, donor_region, recipient_region, graph):
+    def __call__(self, moving_area, donor_region, recipient_region, graph,
+                 distance_metric):
         donor_sum = sum(self.spatially_extensive_attr[area]
                         for area in donor_region if area is not moving_area)
         threshold_reached_donor = donor_sum >= self.threshold
@@ -154,7 +162,8 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         if threshold_reached_donor and threshold_reached_recipient:
             # todo: refactor to use sparse matrix instead of networkx graph:
             return self._decorated_strategy(moving_area, donor_region,
-                                            recipient_region, graph)
+                                            recipient_region, graph,
+                                            distance_metric)
         return False
 
     def __getattr__(self, name):
