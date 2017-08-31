@@ -10,7 +10,8 @@ from region.p_regions.azp_util import AllowMoveAZPMaxPRegions
 from region.util import find_sublist_containing, random_element_from,\
                         pop_randomly_from,array_from_dict_values,\
                         array_from_region_list, objective_func_arr, \
-                        set_distance_metric, raise_distance_metric_not_set
+                        set_distance_metric, raise_distance_metric_not_set, \
+    dataframe_to_dict
 
 
 class MaxPHeu:
@@ -186,9 +187,9 @@ class MaxPHeu:
         max_p = 0  # maximum number of regions
 
         # construction phase
-        print("constructing")
+        # print("constructing")
         for _ in range(max_it):
-            print(" ", _)
+            # print(" ", _)
             partition, enclaves = self.grow_regions(
                     adj, attr, spatially_extensive_attr, threshold)
             n_regions = len(partition)
@@ -199,9 +200,9 @@ class MaxPHeu:
                 partitions_before_enclaves_assignment.append((partition,
                                                               enclaves))
 
-        print("\n" + "assigning enclaves")
+        # print("\n" + "assigning enclaves")
         for partition, enclaves in partitions_before_enclaves_assignment:
-            print("  cleaning up in partition", partition)
+            # print("  cleaning up in partition", partition)
             feasible_partitions.append(self.assign_enclaves(
                     partition, enclaves, areas_dict, attr))
 
@@ -216,7 +217,7 @@ class MaxPHeu:
                     adj, attr, max_p,
                     initial_sol=array_from_region_list(partition))
             partition = self.local_search.labels_
-            print("optimized partition", partition)
+            # print("optimized partition", partition)
             obj_value = objective_func_arr(self.distance_metric, partition,
                                            attr)
             if obj_value < best_obj_value:
@@ -334,7 +335,7 @@ class MaxPHeu:
                 # print("  unassigned:", unassigned_areas)
                 # print("  assigned:", assigned_areas)
                 # print()
-        print("grow_regions produced", partition, "- enclaves:", enclave_areas)
+        # print("grow_regions produced", partition, "- enclaves:", enclave_areas)
         return partition, enclave_areas
 
     def find_best_area(self, region, candidates, attr):
@@ -388,7 +389,7 @@ class MaxPHeu:
         partition : `list`
             Each element (of type `set`) represents a region.
         """
-        print("partition:", partition, "- enclaves:", enclave_areas)
+        # print("partition:", partition, "- enclaves:", enclave_areas)
         while enclave_areas:
             neighbors_of_assigned = [area for area in enclave_areas
                                      if any(neigh not in enclave_areas

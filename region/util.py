@@ -189,7 +189,7 @@ def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not
         Each value is an `int` defining the number of regions in the key
         component.
     """
-    print("distribute_regions_among_components_nx got a ", type(graph))
+    # print("distribute_regions_among_components_nx got a ", type(graph))
     if len(graph) < 1:
         raise ValueError("There must be at least one area.")
     if len(graph) < n_regions:
@@ -312,7 +312,7 @@ def objective_func_list(distance_metric, regions, attr):
         The objective value is the total heterogeneity (sum of each region's
         heterogeneity).
     """
-    print("regions in objective_func_list:", regions)
+    # print("regions in objective_func_list:", regions)
     obj_val = sum(distance_metric(attr[i], attr[j])
                   for r in regions
                   for i, j in itertools.combinations(r, 2))
@@ -495,10 +495,10 @@ def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):  # todo:
     """
     n_regions_per_comp = distribute_regions_among_components_nx(
             n_regions, graph)
-    print("step 1")
+    # print("step 1")
     # step 1: generate a random zoning system of n_regions regions
     #         from num_areas areas
-    print(n_regions_per_comp)
+    # print(n_regions_per_comp)
     comp_clusterings_dicts = []
     for comp, n_regions_in_comp in n_regions_per_comp.items():
         comp_gdf = areas[areas.index.isin(comp.nodes())]
@@ -518,7 +518,7 @@ def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):  # todo:
             for region in regions_list:
                 region_graph = comp.subgraph(region)
                 if not nx.is_connected(region_graph):
-                    print("Region", region, "produced by K-Means disconnected")
+                    # print("Region", region, "produced by K-Means disconnected")
                     parts = list(nx.connected_components(region_graph))
                     parts.sort(key=len)
                     # assign region's smallest parts to neighboring regions

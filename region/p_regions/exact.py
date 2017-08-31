@@ -189,7 +189,7 @@ class ClusterExact:
                              ' strings: "flow", "order", or "tree".')
 
 
-def _flow(neighbor_dict, data, n_regions, solver, distance_metric):
+def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
     """
     Parameters
     ----------
@@ -297,7 +297,7 @@ def _flow(neighbor_dict, data, n_regions, solver, distance_metric):
     return result
 
 
-def _order(neighbor_dict, data, n_regions, solver, distance_metric):
+def _order(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
     """
     Parameters
     ----------
@@ -382,7 +382,7 @@ def _order(neighbor_dict, data, n_regions, solver, distance_metric):
     return result
 
 
-def _tree(neighbor_dict, data, n_regions, solver, distance_metric):
+def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
     """
     Parameters
     ----------

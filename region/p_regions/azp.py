@@ -80,10 +80,10 @@ class AZP:
         regions_built = 0
         for comp in initial_sol_gen:
             in_comp = comp != -1
-            print("Clustering component ", in_comp)
+            # print("Clustering component ", in_comp)
             comp_data = data[in_comp]
             initial_region_labels = comp[in_comp]
-            print("Starting with initial clustering", initial_region_labels)
+            # print("Starting with initial clustering", initial_region_labels)
             comp_adj = adj[in_comp]
             comp_adj = comp_adj[:, in_comp]
             region_list_component = self._azp_connected_component(
@@ -246,44 +246,44 @@ class AZP:
         region_list_copy = region_list.copy()
 
         # todo: rm print-statements
-        print("Init with: ", initial_clustering)
+        # print("Init with: ", initial_clustering)
         obj_val_start = float("inf")  # since Python 3.5 math.inf also possible
         obj_val_end = objective_func(self.distance_metric, region_list, graph)
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
-            print("obj_val:", obj_val_start, "-->", obj_val_end,
-                  "...continue...")
-            print("=" * 45)
+            # print("obj_val:", obj_val_start, "-->", obj_val_end,
+            #       "...continue...")
+            # print("=" * 45)
             # print("step 7")
             obj_val_start = obj_val_end
-            print("step 2")
+            # print("step 2")
             region_list = region_list_copy.copy()
-            print("obj_value:", obj_val_end)
-            print(region_list)
+            # print("obj_value:", obj_val_end)
+            # print(region_list)
             # step 6: when the list for region K is exhausted return to step 3
             # and select another region and repeat steps 4-6
-            print("-" * 35)
+            # print("-" * 35)
             # print("step 6")
             while region_list:
                 # step 3: select & remove any region K at random from this list
-                print("step 3")
+                # print("step 3")
                 random_position = random.randrange(len(region_list))
                 region = region_list.pop(random_position)
                 region_idx = region_list_copy.index(region)
-                print("  chosen region:", region)
+                # print("  chosen region:", region)
                 while True:
                     # step 4: identify a set of zones bordering on members of
                     # region K that could be moved into region K without
                     # destroying the internal contiguity of the donor region(s)
-                    print("step 4")
+                    # print("step 4")
                     neighbors_of_region = [neigh for area in region
                                            for neigh in graph.neighbors(area)
                                            if neigh not in region]
 
                     candidates = {}
-                    print("  neighbors_of_region:", neighbors_of_region)
+                    # print("  neighbors_of_region:", neighbors_of_region)
                     for neigh in neighbors_of_region:
-                        print("  neigh:", neigh)
+                        # print("  neigh:", neigh)
                         region_index_of_neigh = find_sublist_containing(
                             neigh, region_list_copy, index=True)
                         region_of_neigh = region_list_copy[
@@ -301,9 +301,9 @@ class AZP:
                     # as the current best. Then make the move, update the list
                     # of candidate zones, and return to step 4 or else repeat
                     # step 5 until the list is exhausted.
-                    print("step 5")
+                    # print("step 5")
                     while candidates:
-                        print("step 5 loop")
+                        # print("step 5 loop")
                         cand = random.choice(list(candidates))
                         cand_region_idx = candidates[cand]
                         cand_region = region_list_copy[candidates[cand]]
@@ -319,7 +319,7 @@ class AZP:
 
             obj_val_end = objective_func(self.distance_metric,
                                          region_list_copy, graph)
-        print("RETURN: ", region_list_copy)
+        # print("RETURN: ", region_list_copy)
         return region_list_copy
 
 
@@ -481,12 +481,12 @@ class AZPSimulatedAnnealing:
                              "than 0 and less than 1")
         # todo: rm print() calls
         # step a
-        print(("#"*60 + "\n") * 5 + "STEP A")
+        # print(("#"*60 + "\n") * 5 + "STEP A")
         t = self.init_temperature
         nonmoving_steps = 0
         # step d: repeat step b and c
         while nonmoving_steps < self.nonmoving_steps_before_stop:
-            print(("#"*60 + "\n") * 2 + "STEP B")
+            # print(("#"*60 + "\n") * 2 + "STEP B")
             it = 0
             self.min_sa_moves_reached = False
             # step b
@@ -498,36 +498,36 @@ class AZPSimulatedAnnealing:
                                                       distance_metric)
                 initial_sol = self.azp.labels_
 
-                print("old_sol", old_sol)
-                print("new_sol", initial_sol)
+                # print("old_sol", old_sol)
+                # print("new_sol", initial_sol)
                 if old_sol is not None:
-                    print("EQUAL" if (old_sol == initial_sol).all()
-                          else "NOT EQUAL")
+                    # print("EQUAL" if (old_sol == initial_sol).all()
+                    #       else "NOT EQUAL")
                     if (old_sol == initial_sol).all():
-                        print("BREAK")
+                        # print("BREAK")
                         break
-            print("visited", self.visited)
+            # print("visited", self.visited)
             # added termination condition (not in Openshaw & Rao (1995))
-            print(initial_sol)
+            # print(initial_sol)
             if self.visited.count(tuple(initial_sol)) >= self.reps_before_termination:
-                print("VISITED", initial_sol, "FOR",
-                      self.reps_before_termination,
-                      "TIMES --> TERMINATING.")
+                # print("VISITED", initial_sol, "FOR",
+                #       self.reps_before_termination,
+                #       "TIMES --> TERMINATING.")
                 break
             self.visited.append(tuple(initial_sol))
             # step c
-            print(("#"*60 + "\n") * 2 + "STEP C")
+            # print(("#"*60 + "\n") * 2 + "STEP C")
             t *= cooling_factor
             self.allow_move_strategy.update_temperature(t)
 
             if self.move_made:
-                print("MOVE MADE")
+                # print("MOVE MADE")
                 self.move_made = False
             else:
-                print("NO MOVE MADE")
+                # print("NO MOVE MADE")
                 nonmoving_steps += 1
-            print(old_sol)
-            print(initial_sol)
+            # print(old_sol)
+            # print(initial_sol)
         self.labels_ = initial_sol
 
     def fit_from_w(self, w, data, n_regions, initial_sol=None,
@@ -609,27 +609,27 @@ class AZPBasicTabu(AZPTabu):
         graph = graph.subgraph(areas_in_component)
 
         # todo: rm print-statements
-        print("Init with: ", initial_clustering)
+        # print("Init with: ", initial_clustering)
         visited = []
         stop = False
         while True:  # TODO: condition??
-            print("visited", visited)
+            # print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
             region_set = set(frozenset(region) for region in region_list)
             if visited.count(region_set) >= self.reps_before_termination:
                 stop = True
-                print("VISITED", region_list, "FOR",
-                      self.reps_before_termination,
-                      "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
+                # print("VISITED", region_list, "FOR",
+                #       self.reps_before_termination,
+                #       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
             visited.append(region_set)
-            print("=" * 45)
+            # print("=" * 45)
             obj_val_end = objective_func(self.distance_metric, region_list,
                                          graph)
-            print("obj_value:", obj_val_end)
-            print(region_list)
-            print("-" * 35)
+            # print("obj_value:", obj_val_end)
+            # print(region_list)
+            # print("-" * 35)
             # step 1 Find the global best move that is not prohibited or tabu.
-            print("step 1")
+            # print("step 1")
             # find possible moves (globally)
             best_move = None
             best_objval_diff = float("inf")
@@ -654,20 +654,20 @@ class AZPBasicTabu(AZPTabu):
                 except nx.NetworkXPointlessConcept:
                     # if area is the only one in region, it has to stay
                     pass
-            print("  best move:", best_move, "objval_diff:", best_objval_diff)
+            # print("  best move:", best_move, "objval_diff:", best_objval_diff)
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            print("step 2")
+            # print("step 2")
             if best_move is not None and best_objval_diff <= 0:
-                print(region_list)
-                print("IMPROVING MOVE")
+                # print(region_list)
+                # print("IMPROVING MOVE")
                 self._make_move(*best_move, region_list)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
-                print("step 3")
-                print("Tabu:", self.tabu)
+                # print("step 3")
+                # print("Tabu:", self.tabu)
                 improving_tabus = [
                     move for move in self.tabu
                     if move.area in region_list[move.from_idx] and
@@ -675,17 +675,17 @@ class AZPBasicTabu(AZPTabu):
                 if improving_tabus:
                     random_position = random.randrange(len(improving_tabus))
                     aspiration_move = improving_tabus[random_position]
-                    print(region_list)
-                    print("ASPIRATION MOVE")
+                    # print(region_list)
+                    # print("ASPIRATION MOVE")
                     self._make_move(*aspiration_move, region_list)
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
                     # (that is, results in a worse value of the objective
                     # function).
-                    print("step 4")
-                    print(region_list)
-                    print("No improving, no aspiration ==> do the best you can")
+                    # print("step 4")
+                    # print(region_list)
+                    # print("No improving, no aspiration ==> do the best you can")
                     if stop:
                         break
                     if best_move is not None:
@@ -723,25 +723,25 @@ class AZPReactiveTabu(AZPTabu):
         graph = graph.subgraph(areas_in_component)
 
         # todo: rm print-statements
-        print("Init with: ", initial_clustering)
+        # print("Init with: ", initial_clustering)
         it_since_tabu_len_changed = 0
         obj_val_start = float("inf")
         # step 12: Repeat steps 3-11 until either no further improvements are
         # made or a maximum number of iterations are exceeded.
         for it in range(self.maxit):
-            print("=" * 45)
-            print(region_list)
+            # print("=" * 45)
+            # print(region_list)
             obj_val_end = objective_func(self.distance_metric, region_list,
                                          graph)
-            print("obj_value:", obj_val_end)
+            # print("obj_value:", obj_val_end)
             if not obj_val_end < obj_val_start:
                 break  # step 12
             obj_val_start = obj_val_end
 
             it_since_tabu_len_changed += 1
-            print("-" * 35)
+            # print("-" * 35)
             # step 3: Define the list of all possible moves
-            print("step 3")
+            # print("step 3")
             possible_moves = []
             for area in graph.nodes():
                 try:
@@ -761,7 +761,7 @@ class AZPReactiveTabu(AZPTabu):
                     # if area is the only one in region, it has to stay
                     pass
             # step 4: Find the best nontabu move.
-            print("step 4")
+            # print("step 4")
             best_move = None
             best_move_index = None
             best_objval_diff = float("inf")
@@ -771,14 +771,14 @@ class AZPReactiveTabu(AZPTabu):
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
-            print("  best move:", best_move)
+            # print("  best move:", best_move)
             # step 5: Make the move. Update tabu status.
-            print("step 5: make", best_move)
+            # print("step 5: make", best_move)
             self._make_move(*best_move, region_list)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
-            print("step 6")
+            # print("step 6")
             # Sets can't be permuted so we convert our list to a set:
             zoning_system = set(frozenset(s) for s in region_list)
             if zoning_system in self.visited:
@@ -786,14 +786,14 @@ class AZPReactiveTabu(AZPTabu):
                 # times already and this cyclical behavior has been found on
                 # at least K2 other occasions (involving other zones) then go
                 # to step 11.
-                print("step 7")
-                print("  region_list", region_list)
-                print("  self.visited:", self.visited)
+                # print("step 7")
+                # print("  region_list", region_list)
+                # print("  self.visited:", self.visited)
                 times_visited = self.visited.count(zoning_system)
                 cycle = list(reversed(self.visited))
                 cycle = cycle[:cycle.index(zoning_system) + 1]
                 cycle = list(reversed(cycle))
-                print("  cycle:", cycle)
+                # print("  cycle:", cycle)
                 it_until_repetition = len(cycle)
                 if times_visited > self.k1:
                     if self.k2 > 0:
@@ -808,7 +808,7 @@ class AZPReactiveTabu(AZPTabu):
                         # random moves, P = 1 + self.avg_it_until_rep/2, and
                         # update tabu to preclude a return to the previous
                         # state.
-                        print("step 11")
+                        # print("step 11")
                         # we save region_list such that we can access it if
                         # this step yields a poor solution.
                         last_step = (11, region_list)
@@ -823,7 +823,7 @@ class AZPReactiveTabu(AZPTabu):
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the
                     # prohibition period R to 1.1*R.
-                    print("step 8")
+                    # print("step 8")
                     self.rep_counter += 1
                     avg_it = self.avg_it_until_rep
                     self.avg_it_until_rep = 1 / self.rep_counter * \
@@ -833,7 +833,7 @@ class AZPReactiveTabu(AZPTabu):
                     # step 9: If the number of iterations since R was last
                     # changed exceeds self.avg_it_until_rep, then decrease R to
                     # max(0.9*R, 1).
-                    print("step 9")
+                    # print("step 9")
                     if it_since_tabu_len_changed > self.avg_it_until_rep:
                         new_tabu_len = max([0.9*self.tabu.maxlen, 1])
                         new_tabu_len = math.floor(new_tabu_len)
@@ -841,7 +841,7 @@ class AZPReactiveTabu(AZPTabu):
                     it_since_tabu_len_changed = 0  # step 8
 
             # step 10: Save the zoning system and go to step 12.
-            print("step 10")
+            # print("step 10")
             self.visited.append(zoning_system)
             last_step = 10
 
