@@ -112,6 +112,12 @@ class MaxPHeu:
             See corresponding argument in
             :func:`region.fit_functions.fit_from_geodataframe`.
         """
+        if isinstance(spatially_extensive_attr, str):
+            spatially_extensive_attr = [spatially_extensive_attr]
+        else:  # isinstance(data, collections.Sequence)
+            spatially_extensive_attr = list(spatially_extensive_attr)
+        spatially_extensive_attr = dataframe_to_dict(gdf,
+                                                     spatially_extensive_attr)
         fit_functions.fit_from_geodataframe(self, gdf, attr,
                                             spatially_extensive_attr,
                                             threshold, max_it=max_it,
