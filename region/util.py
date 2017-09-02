@@ -4,7 +4,7 @@ import itertools
 import random
 import types
 
-import scipy.sparse.csgraph as cg
+import scipy.sparse.csgraph as csg
 import numpy as np
 import networkx as nx
 from sklearn.cluster.k_means_ import KMeans
@@ -125,7 +125,7 @@ def find_sublist_containing(el, lst, index=False):
             "{} not found in any of the sublists of {}".format(el, lst))
 
 
-def set_distance_metric(instance, metric):  # todo: move to classes (AZP, MaxPHeu,...) or to a new base class
+def set_distance_metric(instance, metric="euclidean"):  # todo: move to classes (AZP, MaxPHeu,...) or to a new base class
     """
     Save the distance metric function specified by the `metric` argument as
     `distance_metric` attribute in the object passed as `instance` argument.
@@ -155,15 +155,66 @@ def set_distance_metric(instance, metric):  # todo: move to classes (AZP, MaxPHe
         3. d(a, b) == d(b, a), symmetry
         4. d(a, c) <= d(a, b) + d(b, c), the triangle inequality
 
+    Examples
+    --------
+    >>> from region.p_regions.azp import AZP
+    >>> from sklearn.metrics.pairwise import manhattan_distances
+    >>> azp = AZP()
+    >>> set_distance_metric(azp, "manhattan")
+    >>> azp.distance_metric == manhattan_distances
+    True
+    """
+    metric = get_distance_metric_function(metric)
+    instance.distance_metric = metric
+
+
+def get_distance_metric_function(metric="euclidean"):
+    """
+
+    Parameters
+    ----------
+    metric : str or function, default: "euclidean"
+        If str, then this string specifies the distance metric (from
+        scikit-learn) to use for calculating the objective function.
+        Possible values are:
+
+        * "cityblock" for sklearn.metrics.pairwise.manhattan_distances
+        * "cosine" for sklearn.metrics.pairwise.cosine_distances
+        * "euclidean" for sklearn.metrics.pairwise.euclidean_distances
+        * "l1" for sklearn.metrics.pairwise.manhattan_distances
+        * "l2" for sklearn.metrics.pairwise.euclidean_distances
+        * "manhattan" for sklearn.metrics.pairwise.manhattan_distances
+
+        If function, then this function should take two arguments and
+        return a scalar value. Furthermore, the following conditions
+        have to be fulfilled:
+
+        1. d(a, b) >= 0, for all a and b
+        2. d(a, b) == 0, if and only if a = b, positive definiteness
+        3. d(a, b) == d(b, a), symmetry
+        4. d(a, c) <= d(a, b) + d(b, c), the triangle inequality
+
+    Returns
+    -------
+    If the `metric` argument is a function, it is returned.
+    If the `metric` argument is a string, then the corresponding distance
+    metric function from `sklearn.metrics.pairwise`.
     """
     if isinstance(metric, str):
-        instance.distance_metric = distance_metrics()[metric]
+        try:
+            return distance_metrics()[metric]
+        except KeyError:
+            raise ValueError(
+                "{} is not a known metric. Please use rather one of the "
+                "following metrics: {}".format(tuple(name for name in
+                                               distance_metrics().keys()
+                                               if name != "precomputed")))
     elif callable(metric):
-        instance.distance_metric = metric
+        return metric
     else:
-        raise ValueError("Please specify a distance metric by using a string "
-                         "or a function. A {} was passed as distance "
-                         "metric.".format(type(metric)))
+        raise ValueError("A {} was passed as `metric` argument. "
+                         "Please pass a string or a function "
+                         "instead.".format(type(metric)))
 
 
 def raise_distance_metric_not_set(x, y):
@@ -214,37 +265,29 @@ def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not
     return result_dict
 
 
-def make_move(area, from_idx, to_idx, region_list):
+def make_move(moving_area, new_label, labels):
     """
-    Modify the `region_list` argument in place (no return value!) such that the
-    area `area` appears in the set with index `to_idx` instead of `from_idx`.
-    This means that area `area` is moved to a new region.
+    Modify the `labels` argument in place (no return value!) such that the
+    area `moving_area` has the new region label `new_label`.
 
     Parameters
     ----------
-    area :
+    moving_area :
         The area to be moved (assigned to a new region).
-    from_idx : `int`
-        The index of `area`'s current region in the list `region_list`.
-    to_idx : `int`
-        The index of `area`'s new region in the list `region_list`.
-    region_list : `list`
-        List of sets where each set represents one region.
+    new_label : `int`
+        The new region label of area `moving_area`.
+    labels : :class:`numpy.ndarray`
+        Each element is a region label of the area corresponding array index.
 
     Examples
     --------
-    >>> region0 = {0, 1, 2}
-    >>> region1 = {3}
-    >>> region_list = [region0, region1]
-    >>> make_move(2, from_idx=0, to_idx=1, region_list=region_list)
-    >>> region_list == [{0, 1}, {2, 3}]
+    >>> import numpy as np
+    >>> labels = np.array([0, 0, 0, 0, 1, 1])
+    >>> make_move(3, 1, labels)
+    >>> (labels == np.array([0, 0, 0, 1, 1, 1])).all()
     True
     """
-    # print("  move", area,
-    #       "  from", region_list[from_idx],
-    #       "  to", region_list[to_idx])
-    region_list[from_idx].remove(area)
-    region_list[to_idx].add(area)
+    labels[moving_area] = new_label
 
 
 def objective_func(distance_metric, region_list, graph, attr="data"):
@@ -256,21 +299,48 @@ def objective_func(distance_metric, region_list, graph, attr="data"):
                if i < j)
 
 
-def objective_func_arr(distance_metric, regions_arr, attr):
+def objective_func_arr(distance_metric, labels_arr, attr,
+                       region_restriction=None):
     """
-
     Parameters
     ----------
-    regions_arr : :class:`numpy.ndarray`
+    distance_metric : function
+        A function t
+    labels_arr : :class:`numpy.ndarray`
         Region labels.
     attr : :class:`numpy.ndarray`
 
+    region_restriction : iterable
+        Each element is a (distinct) region label. The calculation will be
+        restricted to region labels present in this iterable.
+
+    Returns
+    -------
+    obj_val : float
+        The objective value attained with the clustering defined by
+        `labels_arr`.
+
+    Examples
+    --------
+    >>> from sklearn.metrics.pairwise import distance_metrics
+    >>> metric = distance_metrics()["manhattan"]
+    >>> labels = np.array([0, 0, 0, 0, 1, 1])
+    >>> attr = np.arange(len(labels))
+    >>> int(objective_func_arr(metric, labels, attr))
+    11
+    >>> labels = np.array([0, 0, 0, 0, 1, 1, 2, 2])
+    >>> attr = np.arange(len(labels))
+    >>> int(objective_func_arr(metric, labels, attr, region_restriction={0,1}))
+    11
     """
-    regions_set = set(regions_arr)
+    if region_restriction is not None:
+        regions_set = set(region_restriction)
+    else:
+        regions_set = set(labels_arr)
     obj_val = sum(distance_metric(attr[i], attr[j])
                   for r in regions_set
                   for i, j in
-                  itertools.combinations((regions_arr == r).nonzero(), 2))
+                  itertools.combinations(np.where(labels_arr == r)[0], 2))
     return obj_val
 
 
@@ -376,7 +446,7 @@ def generate_initial_sol(adj, n_regions):
 
     Yields
     ------
-    result : :class:`numpy.ndarray`
+    region_labels : :class:`numpy.ndarray`
         An array with -1 for areas which are not part of the yielded
         component and an integer >= 0 specifying the region of areas within the
         yielded component.
@@ -393,7 +463,7 @@ def generate_initial_sol(adj, n_regions):
         yield {area: 0 for area in range(n_areas)}
         return
 
-    n_comps, comp_labels = cg.connected_components(adj)
+    n_comps, comp_labels = csg.connected_components(adj)
     if n_comps > n_regions:
             raise ValueError("The number of regions ({}) must not be "
                              "less than the number of connected components "
@@ -401,7 +471,10 @@ def generate_initial_sol(adj, n_regions):
     n_regions_per_comp = distribute_regions_among_components(comp_labels,
                                                              n_regions)
 
+    print("n_regions_per_comp", n_regions_per_comp)
     for comp_label, n_regions_in_comp in n_regions_per_comp.items():
+        print("comp_label", comp_label)
+        print("n_regions_in_comp", n_regions_in_comp)
         region_labels = -np.ones(len(comp_labels), dtype=np.int32)
         in_comp = comp_labels == comp_label
         comp_adj = adj[in_comp]
@@ -425,8 +498,9 @@ def _randomly_divide_connected_graph(adj, n_regions):
 
     Returns
     -------
-    labels : `list`
-        Each element of the list specifies the region an area belongs to.
+    labels : :class:`numpy.ndarray`
+        Each element specifies the region an area (defined by the index in the
+        array) belongs to.
 
     Examples
     --------
@@ -449,7 +523,7 @@ def _randomly_divide_connected_graph(adj, n_regions):
         msg = "n_regions is {} but must less than or equal to " + \
               "the number of nodes which is {}".format(n_regions, n_areas)
         raise ValueError(msg)
-    mst = cg.minimum_spanning_tree(adj)
+    mst = csg.minimum_spanning_tree(adj)
     for _ in range(n_regions - 1):
         # try different links to cut and pick the one leading to the most
         # balanced solution
@@ -462,14 +536,14 @@ def _randomly_divide_connected_graph(adj, n_regions):
             i, j = nonzero_i[random_position], nonzero_j[random_position]
             mst_copy[i, j] = 0
             mst_copy.eliminate_zeros()
-            labels = cg.connected_components(mst_copy, directed=False)[1]
+            labels = csg.connected_components(mst_copy, directed=False)[1]
             max_size = max(np.unique(labels, return_counts=True)[1])
             if max_size < max_region_size:
                 best_link = (i, j)
                 max_region_size = max_size
         mst[best_link[0], best_link[1]] = 0
         mst.eliminate_zeros()
-    return cg.connected_components(mst)[1]
+    return csg.connected_components(mst)[1]
 
 
 def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):  # todo: rm if not needed
@@ -576,7 +650,7 @@ def assert_feasible(solution, adj, n_regions=None):
             raise ValueError("The number of regions is {} but "
                              "should be {}".format(len(solution), n_regions))
     for region_label in set(solution):
-        _, comp_labels = cg.connected_components(adj)
+        _, comp_labels = csg.connected_components(adj)
         # check whether equal region_label implies equal comp_label
         comp_labels_in_region = comp_labels[solution == region_label]
         if not all_elements_equal(comp_labels_in_region):
@@ -599,7 +673,7 @@ def separate_components(adj, solution):
 
     Yields
     ------
-    comp_dict : `dict`
+    comp_dict : :class:`numpy.ndarray`
         Each yielded dict represents one connected component of the graph
         specified by the `adj` argument. In a yielded dict, each key is an area
         and each value is the corresponding region-ID.
@@ -630,7 +704,7 @@ def separate_components(adj, solution):
     >>> (yielded[1] == np.array([-1, -1, -1, -1, -1, -1, 3, 3, 3, 3])).all()
     True
     """
-    n_comps, comp_labels = cg.connected_components(adj)
+    n_comps, comp_labels = csg.connected_components(adj)
     for comp in set(comp_labels):
         region_labels = -np.ones(len(comp_labels), dtype=np.int32)
         in_comp = comp_labels == comp
@@ -646,6 +720,36 @@ def random_element_from(lst):
 def pop_randomly_from(lst):
     random_position = random.randrange(len(lst))
     return lst.pop(random_position)
+
+
+def count(arr, el):
+    """
+    Parameters
+    ----------
+    arr : :class:`numpy.ndarray`
+
+    el : object
+
+    Returns
+    -------
+    result : :class:`numpy.ndarray`
+        The number of occurences of `el` in `arr`.
+
+    Examples
+    --------
+    >>> arr = np.array([0, 0, 0, 1, 1])
+    >>> count(arr, 0)
+    3
+    >>> count(arr, 1)
+    2
+    >>> count(arr, 2)
+    0
+    """
+    unique, counts = np.unique(arr, return_counts=True)
+    idx = np.where(unique == el)[0]
+    if len(idx) > 0:
+        return int(counts[idx])
+    return 0
 
 
 def region_list_to_dict(region_list):

@@ -2,19 +2,23 @@ import abc
 from collections import deque
 import math
 import random
+from functools import reduce
 
 import numpy as np
 import networkx as nx
 from scipy import sparse as sp
 
 from region import fit_functions
+from region.csgraph_utils import sub_adj_matrix, neighbors, is_connected
 from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
 from region.util import find_sublist_containing, Move, make_move, \
                         objective_func, dict_to_region_list, assert_feasible, \
                         separate_components, generate_initial_sol, copy_func, \
-                        array_from_dict_values, set_distance_metric
+                        array_from_dict_values, set_distance_metric, \
+                        objective_func_arr, pop_randomly_from, count,\
+                        get_distance_metric_function
 
 
 class AZP:
@@ -39,9 +43,8 @@ class AZP:
         wrong_allow_move_arg_msg = "The allow_move_strategy argument must " \
                                    "be either None, or an instance of " \
                                    "AllowMoveStrategy."
-        if allow_move_strategy is None:
-            self.allow_move_strategy = allow_move_strategy = AllowMoveAZP()
-        if isinstance(allow_move_strategy, AllowMoveStrategy):
+        correct_strategy = isinstance(allow_move_strategy, AllowMoveStrategy)
+        if allow_move_strategy is None or correct_strategy:
             self.allow_move_strategy = allow_move_strategy
         else:
             raise ValueError(wrong_allow_move_arg_msg)
@@ -69,7 +72,10 @@ class AZP:
             See the `metric` argument in
             :func:`region.util.set_distance_metric`.
         """
-        set_distance_metric(self, distance_metric)
+        metric = get_distance_metric_function(distance_metric)
+        if self.allow_move_strategy is None:
+            self.allow_move_strategy = AllowMoveAZP(attr=data, metric=metric)
+        set_distance_metric(self, metric)
         # step 1
         if initial_sol is not None:
             assert_feasible(initial_sol, adj, n_regions)
@@ -78,23 +84,15 @@ class AZP:
             initial_sol_gen = generate_initial_sol(adj, n_regions)
         region_labels = -np.ones(adj.shape[0])
         regions_built = 0
-        for comp in initial_sol_gen:
-            in_comp = comp != -1
-            # print("Clustering component ", in_comp)
-            comp_data = data[in_comp]
-            initial_region_labels = comp[in_comp]
-            # print("Starting with initial clustering", initial_region_labels)
-            comp_adj = adj[in_comp]
-            comp_adj = comp_adj[:, in_comp]
-            region_list_component = self._azp_connected_component(
-                comp_adj, initial_region_labels, comp_data)
-            region_list_flat = [
-                find_sublist_containing(i, region_list_component, index=True)
-                for i in range(sum(in_comp))
-            ]
-            region_labels[in_comp] = region_list_flat
-            region_labels[in_comp] += regions_built
-            regions_built += len(set(region_list_flat))
+        for labels_component in initial_sol_gen:
+            in_comp_idx = np.where(labels_component != -1)[0]
+            # print("Clustering component ", in_comp_idx)
+            labels_component = self._azp_connected_component(
+                    adj, labels_component, data, in_comp_idx)
+            labels_component += regions_built
+            regions_built += len(set(labels_component))
+            region_labels[in_comp_idx] = labels_component
+
         self.n_regions = n_regions
         self.labels_ = region_labels
 
@@ -215,40 +213,57 @@ class AZP:
                                           n_regions, initial_sol,
                                           distance_metric=distance_metric)
 
-    def _azp_connected_component(self, adj, initial_clustering, data):
+    def _azp_connected_component(self, adj, initial_clustering, data,
+                                 comp_idx):
         """
+        Implementation of the AZP algorithm for a spatially connected set of
+        areas (i.e. for every area there is a path to every other area).
+
         Parameters
         ----------
         adj : :class:`scipy.sparse.csr_matrix`
-            Adjacency matrix representing the contiguity relation.
-        initial_clustering : `list`
-            Each list element is a `set` containing the areas of a region.
+            Adjacency matrix representing the contiguity relation. The matrix'
+            shape is (N, N) where N denotes the number of *all* areas (not only
+            those that are in a connected component).
+        initial_clustering : :class:`numpy.ndarray`
+            Array of labels. The array's shape is (N) where N denotes the
+            number of *all* areas (not only those that are in a connected
+            component).
         data : :class:`numpy.ndarray`
-            Clustering criterion. The length of this one-dimensional array is
-            equal to the number of regions.
+            Clustering criterion. The array's shape is (N) where N denotes the
+            number of *all* areas (not only those that are in a connected
+            component).
+        comp_idx : :class:`numpy.ndarray`
+            Indices of all areas belonging to a connected component of the
+            graph represented by the adjacency matrix `adj`. Only those areas
+            specified by this argument are considered when the method is
+            executed.
 
         Returns
         -------
-        region_list_copy : `list`
+        labels_copy : `list`
             Each element is an iterable of areas representing a region.
         """
-        graph = nx.from_scipy_sparse_matrix(adj)
-        nx.set_node_attributes(graph, "data",
-                               {n: data_n for n, data_n in enumerate(data)})
-        initial_clustering_dict = {area: reg for area, reg
-                                   in enumerate(initial_clustering)}
-        initial_clustering = dict_to_region_list(initial_clustering_dict)
         # if there is only one region in the initial solution, just return it.
-        if len(initial_clustering) == 1:
+        distinct_regions = list(np.unique(initial_clustering[comp_idx]))
+        if len(distinct_regions) == 1:
             return initial_clustering
-        #  step 2: make a list of the M regions
-        region_list = initial_clustering
-        region_list_copy = region_list.copy()
+        distinct_regions_copy = distinct_regions.copy()
 
-        # todo: rm print-statements
+        adj = sub_adj_matrix(adj, comp_idx)
+        print("comp_adj.shape:", adj.shape)
+        initial_clustering = initial_clustering[comp_idx]
+        print("initial_clustering", initial_clustering)
+        data = data[comp_idx]
+        print("data", data)
+        self.allow_move_strategy.set_comp_idx(comp_idx)
+        #  step 2: make a list of the M regions
+        labels = initial_clustering
+
         # print("Init with: ", initial_clustering)
         obj_val_start = float("inf")  # since Python 3.5 math.inf also possible
-        obj_val_end = objective_func(self.distance_metric, region_list, graph)
+        obj_val_end = objective_func_arr(self.distance_metric, labels, data)
+        print("start with obj. val.:", obj_val_end)
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
             # print("obj_val:", obj_val_start, "-->", obj_val_end,
@@ -256,71 +271,69 @@ class AZP:
             # print("=" * 45)
             # print("step 7")
             obj_val_start = obj_val_end
-            # print("step 2")
-            region_list = region_list_copy.copy()
-            # print("obj_value:", obj_val_end)
-            # print(region_list)
+            print("step 2")
+            distinct_regions = distinct_regions_copy.copy()
             # step 6: when the list for region K is exhausted return to step 3
             # and select another region and repeat steps 4-6
             # print("-" * 35)
             # print("step 6")
-            while region_list:
+            while distinct_regions:
                 # step 3: select & remove any region K at random from this list
-                # print("step 3")
-                random_position = random.randrange(len(region_list))
-                region = region_list.pop(random_position)
-                region_idx = region_list_copy.index(region)
-                # print("  chosen region:", region)
+                print("step 3")
+                region = pop_randomly_from(distinct_regions)
+                print("  chosen region:", region)
                 while True:
                     # step 4: identify a set of zones bordering on members of
                     # region K that could be moved into region K without
                     # destroying the internal contiguity of the donor region(s)
-                    # print("step 4")
-                    neighbors_of_region = [neigh for area in region
-                                           for neigh in graph.neighbors(area)
-                                           if neigh not in region]
-
-                    candidates = {}
-                    # print("  neighbors_of_region:", neighbors_of_region)
+                    print("step 4")
+                    region_areas = np.where(labels == region)[0]
+                    # print("region consists of areas", region_areas)
+                    # print("adj", adj.todense())
+                    neighbors_of_region = reduce(
+                            np.union1d,
+                            (neighbors(adj, area) for area in region_areas))
+                    neighbors_of_region = np.setdiff1d(neighbors_of_region,
+                                                       region_areas)
+                    # print("  neighbors of region", region, "are:")
+                    # print(neighbors_of_region)
+                    candidates = []
                     for neigh in neighbors_of_region:
-                        # print("  neigh:", neigh)
-                        region_index_of_neigh = find_sublist_containing(
-                            neigh, region_list_copy, index=True)
-                        region_of_neigh = region_list_copy[
-                            region_index_of_neigh]
-                        try:
-                            if nx.is_connected(
-                                    graph.subgraph(region_of_neigh - {neigh})):
-                                candidates[neigh] = region_index_of_neigh
-                        except nx.NetworkXPointlessConcept:
-                            # if area is the only one in region, it has to stay
-                            pass
+                        neigh_region = labels[neigh]
+                        # print("  labels:", labels)
+                        # print("  We could move area {} from {} to {}".format(neigh, neigh_region, region))
+                        # print("  adj before subbing:\n", adj.todense())
+                        sub_mat = sub_adj_matrix(
+                                adj,
+                                np.where(labels == neigh_region)[0],
+                                wo_nodes=neigh)
+                        # print("  submatrix:\n", sub_mat.todense())
+                        if is_connected(sub_mat):
+                            # if area is alone in its region, it must stay
+                            if count(labels, neigh_region) > 1:
+                                candidates.append(neigh)
                     # step 5: randomly select zones from this list until either
                     # there is a local improvement in the current value of the
                     # objective function or a move that is equivalently as good
                     # as the current best. Then make the move, update the list
                     # of candidate zones, and return to step 4 or else repeat
                     # step 5 until the list is exhausted.
-                    # print("step 5")
+                    print("step 5")
                     while candidates:
-                        # print("step 5 loop")
-                        cand = random.choice(list(candidates))
-                        cand_region_idx = candidates[cand]
-                        cand_region = region_list_copy[candidates[cand]]
-                        del candidates[cand]
-                        if self.allow_move_strategy(cand, cand_region, region,
-                                                    graph,
-                                                    self.distance_metric):
-                            make_move(cand, cand_region_idx, region_idx,
-                                      region_list_copy)
+                        print("step 5 loop")
+                        cand = pop_randomly_from(candidates)
+                        if self.allow_move_strategy(cand, region, labels):
+                            print("  MOVING {} from {} to {}".format(cand, labels[cand], region))
+                            make_move(cand, region, labels)
+                            # print("new labels:\n", labels, sep="")
+                            # print("new obj. val.:", objective_func_arr(self.distance_metric, labels, data))
                             break
                     else:
                         break
 
-            obj_val_end = objective_func(self.distance_metric,
-                                         region_list_copy, graph)
-        # print("RETURN: ", region_list_copy)
-        return region_list_copy
+            obj_val_end = objective_func_arr(self.distance_metric, labels,
+                                             data)
+        return labels
 
 
 class AZPSimulatedAnnealing:
@@ -526,8 +539,6 @@ class AZPSimulatedAnnealing:
             else:
                 # print("NO MOVE MADE")
                 nonmoving_steps += 1
-            # print(old_sol)
-            # print(initial_sol)
         self.labels_ = initial_sol
 
     def fit_from_w(self, w, data, n_regions, initial_sol=None,
