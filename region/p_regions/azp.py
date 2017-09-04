@@ -613,7 +613,6 @@ class AZPBasicTabu(AZPTabu):
         distinct_regions = list(np.unique(initial_clustering[comp_idx]))
         if len(distinct_regions) == 1:
             return initial_clustering
-        distinct_regions_copy = distinct_regions.copy()
 
         adj = sub_adj_matrix(adj, comp_idx)
         print("comp_adj.shape:", adj.shape)
@@ -722,22 +721,24 @@ class AZPReactiveTabu(AZPTabu):
         self.k1 = k1
         self.k2 = k2
 
-    def _azp_connected_component(self, adj, initial_clustering, data):
-        graph = nx.from_scipy_sparse_matrix(adj)
-        nx.set_node_attributes(graph, "data",
-                               {n: data_n for n, data_n in enumerate(data)})
-        initial_clustering_dict = {area: reg for area, reg
-                                   in enumerate(initial_clustering)}
-        initial_clustering = dict_to_region_list(initial_clustering_dict)
+    def _azp_connected_component(self, adj, initial_clustering, data,
+                                 comp_idx):
+        self.reset_tabu(1)
         # if there is only one region in the initial solution, just return it.
-        if len(initial_clustering) == 1:
+        distinct_regions = list(np.unique(initial_clustering[comp_idx]))
+        if len(distinct_regions) == 1:
             return initial_clustering
-        last_step = 1
+
+        adj = sub_adj_matrix(adj, comp_idx)
+        print("comp_adj.shape:", adj.shape)
+        initial_clustering = initial_clustering[comp_idx]
+        print("initial_clustering", initial_clustering)
+        data = data[comp_idx]
+        print("data", data)
+        self.allow_move_strategy.set_comp_idx(comp_idx)
+
         #  step 2: make a list of the M regions
-        region_list = initial_clustering
-        areas_in_component = (a for sublist in initial_clustering
-                              for a in sublist)
-        graph = graph.subgraph(areas_in_component)
+        labels = initial_clustering
 
         # todo: rm print-statements
         # print("Init with: ", initial_clustering)
@@ -748,8 +749,8 @@ class AZPReactiveTabu(AZPTabu):
         for it in range(self.maxit):
             # print("=" * 45)
             # print(region_list)
-            obj_val_end = objective_func(self.distance_metric, region_list,
-                                         graph)
+            obj_val_end = objective_func_arr(self.distance_metric, labels,
+                                             data)
             # print("obj_value:", obj_val_end)
             if not obj_val_end < obj_val_start:
                 break  # step 12
@@ -757,26 +758,25 @@ class AZPReactiveTabu(AZPTabu):
 
             it_since_tabu_len_changed += 1
             # print("-" * 35)
-            # step 3: Define the list of all possible moves
+            # step 3: Define the list of all possible moves that are not tabu
+            # and retain regional connectivity.
             # print("step 3")
             possible_moves = []
-            for area in graph.nodes():
-                try:
-                    from_idx = find_sublist_containing(
-                            area, region_list, index=True)
-                    old_region = region_list[from_idx]
-                    area_region_wo_area = old_region - {area}
-                    if nx.is_connected(graph.subgraph(area_region_wo_area)):
-                        for neigh in graph.neighbors(area):
-                            if neigh not in old_region:
-                                to_idx = find_sublist_containing(
-                                        neigh, region_list, index=True)
-                                move = Move(area, from_idx, to_idx)
-                                if move not in self.tabu:
-                                    possible_moves.append(move)
-                except nx.NetworkXPointlessConcept:
-                    # if area is the only one in region, it has to stay
-                    pass
+            for area in range(labels.shape[0]):
+                old_region = labels[area]
+                sub_adj = sub_adj_matrix(
+                            adj,
+                            np.where(labels == old_region)[0],
+                            wo_nodes=area)
+                # moving the area must not destroy spatial contiguity in donor
+                # region and if area is alone in its region, it must stay:
+                if is_connected(sub_adj) and count(labels, old_region) > 1:
+                    for neigh in neighbors(adj, area):
+                        new_region = labels[neigh]
+                        if new_region != old_region:
+                            possible_move = Move(area, old_region, new_region)
+                            if possible_move not in self.tabu:
+                                possible_moves.append(possible_move)
             # step 4: Find the best nontabu move.
             # print("step 4")
             best_move = None
@@ -784,31 +784,31 @@ class AZPReactiveTabu(AZPTabu):
             best_objval_diff = float("inf")
             for i, move in enumerate(possible_moves):
                 obj_val_diff = self._objval_diff(
-                        *move, region_list, graph)
+                        move.area, move.new_region, labels, data)
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
             # print("  best move:", best_move)
-            # step 5: Make the move. Update tabu status.
+            # step 5: Make the move. Update the tabu status.
             # print("step 5: make", best_move)
-            self._make_move(*best_move, region_list)
+            self._make_move(best_move.area, best_move.new_region, labels)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
             # print("step 6")
             # Sets can't be permuted so we convert our list to a set:
-            zoning_system = set(frozenset(s) for s in region_list)
-            if zoning_system in self.visited:
+            label_tup = tuple(labels)
+            if label_tup in self.visited:
                 # step 7: If it is found and it has been visited more than K1
                 # times already and this cyclical behavior has been found on
                 # at least K2 other occasions (involving other zones) then go
                 # to step 11.
                 # print("step 7")
-                # print("  region_list", region_list)
+                # print("  labels", labels)
                 # print("  self.visited:", self.visited)
-                times_visited = self.visited.count(zoning_system)
+                times_visited = self.visited.count(label_tup)
                 cycle = list(reversed(self.visited))
-                cycle = cycle[:cycle.index(zoning_system) + 1]
+                cycle = cycle[:cycle.index(label_tup) + 1]
                 cycle = list(reversed(cycle))
                 # print("  cycle:", cycle)
                 it_until_repetition = len(cycle)
@@ -826,16 +826,17 @@ class AZPReactiveTabu(AZPTabu):
                         # update tabu to preclude a return to the previous
                         # state.
                         # print("step 11")
-                        # we save region_list such that we can access it if
+                        # we save the labels such that we can access it if
                         # this step yields a poor solution.
-                        last_step = (11, region_list)
+                        last_step = (11, tuple(labels))
                         self.visited = []
                         p = math.floor(1 + self.avg_it_until_rep/2)
                         possible_moves.pop(best_move_index)
                         for _ in range(p):
                             move = possible_moves.pop(
                                     random.randrange(len(possible_moves)))
-                            self._make_move(*move, region_list)
+                            self._make_move(move.area, move.new_region,
+                                            labels)
                         continue
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the
@@ -859,14 +860,14 @@ class AZPReactiveTabu(AZPTabu):
 
             # step 10: Save the zoning system and go to step 12.
             # print("step 10")
-            self.visited.append(zoning_system)
+            self.visited.append(tuple(labels))
             last_step = 10
 
         if last_step == 10:
             try:
-                return self.visited[-2]
+                return np.array(self.visited[-2])
             except IndexError:
-                return self.visited[-1]
+                return np.array(self.visited[-1])
         # if step 11 was the last one, the result is in last_step[1]
-        return last_step[1]
+        return np.array(last_step[1])
     _azp_connected_component.__doc__ = AZP._azp_connected_component.__doc__
