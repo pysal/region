@@ -309,7 +309,9 @@ def objective_func_arr(distance_metric, labels_arr, attr,
     Parameters
     ----------
     distance_metric : function
-        A function t
+        A function taking two arguments and returning a scalar >= 0.
+        Furthermore, the function must fulfill the properties described in the
+        docstring of :meth:`get_distance_metric_function`.
     labels_arr : :class:`numpy.ndarray`
         Region labels.
     attr : :class:`numpy.ndarray`
@@ -476,6 +478,7 @@ def generate_initial_sol(adj, n_regions):
                                                              n_regions)
 
     print("n_regions_per_comp", n_regions_per_comp)
+    regions_built = 0
     for comp_label, n_regions_in_comp in n_regions_per_comp.items():
         print("comp_label", comp_label)
         print("n_regions_in_comp", n_regions_in_comp)
@@ -484,7 +487,9 @@ def generate_initial_sol(adj, n_regions):
         comp_adj = adj[in_comp]
         comp_adj = comp_adj[:, in_comp]
         region_labels_comp = _randomly_divide_connected_graph(
-                comp_adj, n_regions_in_comp)
+                comp_adj, n_regions_in_comp) + regions_built
+        regions_built += n_regions_in_comp
+        print("Regions in comp:", set(region_labels_comp))
         region_labels[in_comp] = region_labels_comp
         yield region_labels
 
@@ -503,8 +508,8 @@ def _randomly_divide_connected_graph(adj, n_regions):
     Returns
     -------
     labels : :class:`numpy.ndarray`
-        Each element specifies the region an area (defined by the index in the
-        array) belongs to.
+        Each element (an integer in {0, ..., `n_regions` - 1}) specifies the
+        region an area (defined by the index in the array) belongs to.
 
     Examples
     --------

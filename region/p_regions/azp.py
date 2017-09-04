@@ -13,9 +13,8 @@ from region.csgraph_utils import sub_adj_matrix, neighbors, is_connected
 from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
-from region.util import find_sublist_containing, Move, make_move, \
-                        objective_func, dict_to_region_list, assert_feasible, \
-                        separate_components, generate_initial_sol, copy_func, \
+from region.util import Move, make_move, assert_feasible, separate_components,\
+                        generate_initial_sol, copy_func, \
                         array_from_dict_values, set_distance_metric, \
                         objective_func_arr, pop_randomly_from, count,\
                         get_distance_metric_function, random_element_from
@@ -83,14 +82,11 @@ class AZP:
         else:
             initial_sol_gen = generate_initial_sol(adj, n_regions)
         region_labels = -np.ones(adj.shape[0])
-        regions_built = 0
         for labels_component in initial_sol_gen:
             in_comp_idx = np.where(labels_component != -1)[0]
             # print("Clustering component ", in_comp_idx)
             labels_component = self._azp_connected_component(
                     adj, labels_component, data, in_comp_idx)
-            labels_component += regions_built
-            regions_built += len(set(labels_component))
             region_labels[in_comp_idx] = labels_component
 
         self.n_regions = n_regions
@@ -342,18 +338,14 @@ class AZPSimulatedAnnealing:
                  nonmoving_steps_before_stop=3,
                  repetitions_before_termination=5, random_state=None):
 
+        self.allow_move_strategy = None
+        self.azp = None
+
         if init_temperature is not None:
             self.init_temperature = init_temperature
         else:
             raise NotImplementedError("TODO")  # todo
 
-        self.allow_move_strategy = AllowMoveAZPSimulatedAnnealing(
-            init_temperature=init_temperature, min_sa_moves=min_sa_moves)
-        self.allow_move_strategy.register_min_sa_moves(self.sa_moves_alert)
-        self.allow_move_strategy.register_move_made(self.move_made_alert)
-
-        self.azp = AZP(allow_move_strategy=self.allow_move_strategy,
-                       random_state=random_state)
         self.labels_ = None
 
         self.maxit = max_iterations
@@ -365,6 +357,8 @@ class AZPSimulatedAnnealing:
 
         self.visited = []
         self.reps_before_termination = repetitions_before_termination
+
+        self.random_state = random_state
 
     def fit_from_geodataframe(self, gdf, data, n_regions,
                               contiguity="rook",initial_sol=None,
@@ -492,6 +486,16 @@ class AZPSimulatedAnnealing:
         if not (0 < cooling_factor < 1):
             raise ValueError("The cooling_factor argument must be greater "
                              "than 0 and less than 1")
+        metric = get_distance_metric_function(distance_metric)
+        self.allow_move_strategy = AllowMoveAZPSimulatedAnnealing(
+                attr=data, metric=metric,
+                init_temperature=self.init_temperature,
+                min_sa_moves=self.min_sa_moves)
+        self.allow_move_strategy.register_min_sa_moves(self.sa_moves_alert)
+        self.allow_move_strategy.register_move_made(self.move_made_alert)
+
+        self.azp = AZP(allow_move_strategy=self.allow_move_strategy,
+                       random_state=self.random_state)
         # todo: rm print() calls
         # step a
         # print(("#"*60 + "\n") * 5 + "STEP A")
@@ -507,8 +511,7 @@ class AZPSimulatedAnnealing:
                 it += 1
                 old_sol = initial_sol
                 self.azp.fit_from_scipy_sparse_matrix(adj, data, n_regions,
-                                                      initial_sol,
-                                                      distance_metric)
+                                                      initial_sol, metric)
                 initial_sol = self.azp.labels_
 
                 # print("old_sol", old_sol)
