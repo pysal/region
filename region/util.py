@@ -11,7 +11,7 @@ from sklearn.cluster.k_means_ import KMeans
 from sklearn.metrics.pairwise import distance_metrics
 
 
-Move = collections.namedtuple("move", "area from_idx to_idx")
+Move = collections.namedtuple("move", "area old_region new_region")
 
 
 def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
@@ -217,8 +217,12 @@ def get_distance_metric_function(metric="euclidean"):
                          "instead.".format(type(metric)))
 
 
+class MissingMetric(RuntimeError):
+    """Raised when a distance metric is required but was not set."""
+
+
 def raise_distance_metric_not_set(x, y):
-    raise Exception("distance metric not set!")
+    raise MissingMetric("distance metric not set!")
 
 
 def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not needed

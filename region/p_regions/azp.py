@@ -18,7 +18,7 @@ from region.util import find_sublist_containing, Move, make_move, \
                         separate_components, generate_initial_sol, copy_func, \
                         array_from_dict_values, set_distance_metric, \
                         objective_func_arr, pop_randomly_from, count,\
-                        get_distance_metric_function
+                        get_distance_metric_function, random_element_from
 
 
 class AZP:
@@ -303,12 +303,12 @@ class AZP:
                         # print("  labels:", labels)
                         # print("  We could move area {} from {} to {}".format(neigh, neigh_region, region))
                         # print("  adj before subbing:\n", adj.todense())
-                        sub_mat = sub_adj_matrix(
+                        sub_adj = sub_adj_matrix(
                                 adj,
                                 np.where(labels == neigh_region)[0],
                                 wo_nodes=neigh)
-                        # print("  submatrix:\n", sub_mat.todense())
-                        if is_connected(sub_mat):
+                        # print("  submatrix:\n", sub_adj.todense())
+                        if is_connected(sub_adj):
                             # if area is alone in its region, it must stay
                             if count(labels, neigh_region) > 1:
                                 candidates.append(neigh)
@@ -574,25 +574,28 @@ class AZPSimulatedAnnealing:
 
 
 class AZPTabu(AZP, abc.ABC):
-    def _make_move(self, area, from_idx, to_idx, region_list):
-        make_move(area, from_idx, to_idx, region_list)
+    def _make_move(self, area, new_region, labels):
+        old_region = labels[area]
+        make_move(area, new_region, labels)
         # step 5: Tabu the reverse move for R iterations.
-        reverse_move = Move(area, to_idx, from_idx)
+        reverse_move = Move(area, new_region, old_region)
         self.tabu.append(reverse_move)
 
-    def _objval_diff(self, area, from_idx, to_idx, region_list, graph):
-        from_region = region_list[from_idx]
-        to_region = region_list[to_idx]
+    def _objval_diff(self, area, new_region, labels, data):
+        old_region = labels[area]
         # before move
-        objval_before = objective_func(
-                self.distance_metric, [from_region, to_region], graph)
+        objval_before = objective_func_arr(
+                self.distance_metric, labels, data, [old_region, new_region])
         # after move
-        region_of_cand_after = from_region.copy()
-        region_of_cand_after.remove(area)
-        objval_after = objective_func(
-                self.distance_metric,
-                [region_of_cand_after, to_region.union({area})], graph)
+        labels[area] = new_region
+        objval_after = objective_func_arr(
+                self.distance_metric, labels, data, [old_region, new_region])
+        labels[area] = old_region
         return objval_after - objval_before
+
+    def reset_tabu(self, tabu_len=None):
+        tabu_len = self.tabu.maxlen if tabu_len is None else tabu_len
+        self.tabu = deque([], tabu_len)
 
 
 class AZPBasicTabu(AZPTabu):
@@ -603,21 +606,25 @@ class AZPBasicTabu(AZPTabu):
         self.reps_before_termination = repetitions_before_termination
         super().__init__(random_state=random_state)
 
-    def _azp_connected_component(self, adj, initial_clustering, data):
-        graph = nx.from_scipy_sparse_matrix(adj)
-        nx.set_node_attributes(graph, "data",
-                               {n: data_n for n, data_n in enumerate(data)})
-        initial_clustering_dict = {area: reg for area, reg
-                                   in enumerate(initial_clustering)}
-        initial_clustering = dict_to_region_list(initial_clustering_dict)
+    def _azp_connected_component(self, adj, initial_clustering, data,
+                                 comp_idx):
+        self.reset_tabu()
         # if there is only one region in the initial solution, just return it.
-        if len(initial_clustering) == 1:
+        distinct_regions = list(np.unique(initial_clustering[comp_idx]))
+        if len(distinct_regions) == 1:
             return initial_clustering
+        distinct_regions_copy = distinct_regions.copy()
+
+        adj = sub_adj_matrix(adj, comp_idx)
+        print("comp_adj.shape:", adj.shape)
+        initial_clustering = initial_clustering[comp_idx]
+        print("initial_clustering", initial_clustering)
+        data = data[comp_idx]
+        print("data", data)
+        self.allow_move_strategy.set_comp_idx(comp_idx)
+
         #  step 2: make a list of the M regions
-        region_list = initial_clustering
-        areas_in_component = (a for sublist in initial_clustering
-                              for a in sublist)
-        graph = graph.subgraph(areas_in_component)
+        labels = initial_clustering
 
         # todo: rm print-statements
         # print("Init with: ", initial_clustering)
@@ -626,16 +633,14 @@ class AZPBasicTabu(AZPTabu):
         while True:  # TODO: condition??
             # print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
-            region_set = set(frozenset(region) for region in region_list)
-            if visited.count(region_set) >= self.reps_before_termination:
+            label_tup = tuple(labels)
+            if visited.count(label_tup) >= self.reps_before_termination:
                 stop = True
-                # print("VISITED", region_list, "FOR",
+                # print("VISITED", label_tup, "FOR",
                 #       self.reps_before_termination,
                 #       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
-            visited.append(region_set)
+            visited.append(label_tup)
             # print("=" * 45)
-            obj_val_end = objective_func(self.distance_metric, region_list,
-                                         graph)
             # print("obj_value:", obj_val_end)
             # print(region_list)
             # print("-" * 35)
@@ -644,64 +649,65 @@ class AZPBasicTabu(AZPTabu):
             # find possible moves (globally)
             best_move = None
             best_objval_diff = float("inf")
-            for area in graph.nodes():
-                try:
-                    from_idx = find_sublist_containing(
-                            area, region_list, index=True)
-                    from_region = region_list[from_idx]
-                    area_region_wo_area = from_region - {area}
-                    if nx.is_connected(graph.subgraph(area_region_wo_area)):
-                        for neigh in graph.neighbors(area):
-                            if neigh not in from_region:
-                                to_idx = find_sublist_containing(
-                                        neigh, region_list, index=True)
-                                possible_move = Move(area, from_idx, to_idx)
-                                if possible_move not in self.tabu:
-                                    objval_diff = self._objval_diff(
-                                            *possible_move, region_list, graph)
-                                    if objval_diff < best_objval_diff:
-                                        best_move = possible_move
-                                        best_objval_diff = objval_diff
-                except nx.NetworkXPointlessConcept:
-                    # if area is the only one in region, it has to stay
-                    pass
+            for area in range(labels.shape[0]):
+                old_region = labels[area]
+                sub_adj = sub_adj_matrix(
+                            adj,
+                            np.where(labels == old_region)[0],
+                            wo_nodes=area)
+                # moving the area must not destroy spatial contiguity in donor
+                # region and if area is alone in its region, it must stay:
+                if is_connected(sub_adj) and count(labels, old_region) > 1:
+                    for neigh in neighbors(adj, area):
+                        new_region = labels[neigh]
+                        if new_region != old_region:
+                            possible_move = Move(area, old_region, new_region)
+                            if possible_move not in self.tabu:
+                                objval_diff = self._objval_diff(
+                                        possible_move.area,
+                                        possible_move.new_region, labels, data)
+                                if objval_diff < best_objval_diff:
+                                    best_move = possible_move
+                                    best_objval_diff = objval_diff
             # print("  best move:", best_move, "objval_diff:", best_objval_diff)
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            # print("step 2")
+            print("step 2")
             if best_move is not None and best_objval_diff <= 0:
-                # print(region_list)
-                # print("IMPROVING MOVE")
-                self._make_move(*best_move, region_list)
+                print(labels)
+                print("IMPROVING MOVE")
+                self._make_move(best_move.area, best_move.new_region, labels)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
-                # print("step 3")
-                # print("Tabu:", self.tabu)
+                print("step 3")
+                print("Tabu:", self.tabu)
                 improving_tabus = [
                     move for move in self.tabu
-                    if move.area in region_list[move.from_idx] and
-                    self._objval_diff(*move, region_list, graph) < 0]
+                    if labels[move.area] == move.old_region and
+                    self._objval_diff(move.area, move.new_region,
+                                      labels, data) < 0
+                ]
+                print(labels)
                 if improving_tabus:
-                    random_position = random.randrange(len(improving_tabus))
-                    aspiration_move = improving_tabus[random_position]
-                    # print(region_list)
+                    aspiration_move = random_element_from(improving_tabus)
                     # print("ASPIRATION MOVE")
-                    self._make_move(*aspiration_move, region_list)
+                    self._make_move(aspiration_move.area,
+                                    aspiration_move.new_region, labels)
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
                     # (that is, results in a worse value of the objective
                     # function).
-                    # print("step 4")
-                    # print(region_list)
-                    # print("No improving, no aspiration ==> do the best you can")
+                    print("step 4")
+                    print("No improving, no aspiration ==> make the best move")
                     if stop:
                         break
                     if best_move is not None:
-                        self._make_move(*best_move, region_list)
-        return region_list
+                        self._make_move(best_move.area, best_move.new_region,
+                                        labels)
+        return labels
     _azp_connected_component.__doc__ = AZP._azp_connected_component.__doc__
 
 
@@ -758,11 +764,11 @@ class AZPReactiveTabu(AZPTabu):
                 try:
                     from_idx = find_sublist_containing(
                             area, region_list, index=True)
-                    from_region = region_list[from_idx]
-                    area_region_wo_area = from_region - {area}
+                    old_region = region_list[from_idx]
+                    area_region_wo_area = old_region - {area}
                     if nx.is_connected(graph.subgraph(area_region_wo_area)):
                         for neigh in graph.neighbors(area):
-                            if neigh not in from_region:
+                            if neigh not in old_region:
                                 to_idx = find_sublist_containing(
                                         neigh, region_list, index=True)
                                 move = Move(area, from_idx, to_idx)
