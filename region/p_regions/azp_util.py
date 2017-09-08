@@ -5,7 +5,7 @@ import random
 
 import numpy as np
 
-from region.util import objective_func_arr
+from region.util import objective_func_arr, objective_func_diff
 
 
 class AllowMoveStrategy(abc.ABC):
@@ -24,6 +24,7 @@ class AllowMoveStrategy(abc.ABC):
         self.attr = None
         self.metric = metric
         self.comp_idx = None
+        self.cache = {}
 
     def set_comp_idx(self, comp_idx):
         """
@@ -35,6 +36,7 @@ class AllowMoveStrategy(abc.ABC):
         """
         self.comp_idx = comp_idx
         self.attr = self.attr_all[comp_idx]
+        self.cache.clear()
 
     @abc.abstractmethod
     def __call__(self, moving_area, new_region, labels):
@@ -67,25 +69,38 @@ class AllowMoveAZP(AllowMoveStrategy):
         super().__init__(attr=attr, metric=metric)
 
     def __call__(self, moving_area, new_region, labels):
-        dist_met = self.metric
         old_region = labels[moving_area]
         # before move
-        obj_val_before = objective_func_arr(dist_met, labels, self.attr,
-                                            {old_region, new_region})
-        # after move
-        labels[moving_area] = new_region
-        obj_val_after = objective_func_arr(dist_met, labels, self.attr,
-                                           {old_region, new_region})
-        labels[moving_area] = old_region
+        try:
+            obj_val_donor_before = self.cache[old_region]
+        except KeyError:
+            obj_val_donor_before = objective_func_arr(self.metric, labels,
+                                                      self.attr, {old_region})
+            self.cache[old_region] = obj_val_donor_before
 
-        if obj_val_after <= obj_val_before:
-            print("  allowing move because {} <= {}".format(obj_val_after,
-                                                            obj_val_before))
-            print("labels were", labels)
-            print("attr", self.attr)
-            print("metric", dist_met)
+        try:
+            obj_val_recipient_before = self.cache[new_region]
+        except KeyError:
+            obj_val_recipient_before = objective_func_arr(self.metric, labels,
+                                                          self.attr,
+                                                          {new_region})
+            self.cache[new_region] = obj_val_recipient_before
+
+        # after move
+        donor_diff, recipient_diff = objective_func_diff(
+                self.metric, labels, self.attr, moving_area, new_region)
+        diff = donor_diff + recipient_diff
+        if diff <= 0:
+            # print("  allowing move because difference {} <= 0".format(diff))
+            # print("  objective value was at {}".format(objective_func_arr(self.metric, labels, self.attr)))
+            # labels[moving_area] = new_region; print("  objective value is now at {}".format(objective_func_arr(self.metric, labels, self.attr))); labels[moving_area] = old_region
+            self.cache[old_region] += donor_diff
+            self.cache[new_region] += recipient_diff
             return True
-        return False
+
+        else:
+            # print("  disallowing move because difference {} <= 0".format(diff))
+            return False
 
 
 class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):

@@ -62,7 +62,8 @@ class AZP:
         adj : :class:`scipy.sparse.csr_matrix`
             Adjacency matrix representing the contiguity relation.
         data : :class:`numpy.ndarray`
-            Array of data according to which the clustering is performed.
+            Array (number of areas x number of attributes) of data according to
+            which the clustering is performed.
         n_regions : `int`
             Number of desired regions.
         initial_sol : :class:`numpy.ndarray`
@@ -71,6 +72,8 @@ class AZP:
             See the `metric` argument in
             :func:`region.util.set_distance_metric`.
         """
+        if data.ndim == 1:
+            data = data.reshape(adj.shape[0], -1)
         metric = get_distance_metric_function(distance_metric)
         if self.allow_move_strategy is None:
             self.allow_move_strategy = AllowMoveAZP(attr=data, metric=metric)

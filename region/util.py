@@ -343,11 +343,42 @@ def objective_func_arr(distance_metric, labels_arr, attr,
         regions_set = set(region_restriction)
     else:
         regions_set = set(labels_arr)
-    obj_val = sum(distance_metric(attr[i], attr[j])
+    obj_val = sum(distance_metric(attr[i].reshape(1, -1),
+                                  attr[j].reshape(1, -1))
                   for r in regions_set
                   for i, j in
                   itertools.combinations(np.where(labels_arr == r)[0], 2))
     return obj_val
+
+
+def objective_func_diff(distance_metric, labels, attr, area, new_region):
+    """
+    Parameters
+    ----------
+    distance_metric : function
+    labels : :class:`numpy.ndarray`
+    attr : :class:`numpy.ndarray`
+    area : int
+    new_region : int
+
+    Returns
+    -------
+    diff : tuple
+        The tuple's first entry is the difference in the objective function
+        in the donor region caused by removing area `area` from it.
+        The tuple's second entry is the difference in the objective function
+        in the recipient region caused by adding area `area` to it.
+    """
+    donor_region = labels[area]
+
+    attr_donor = attr[labels == donor_region]
+    donor_diff = sum(distance_metric(attr_donor,
+                                     attr[area].reshape(1, -1)))
+
+    attr_recipient = attr[labels == new_region]
+    recipient_diff = sum(distance_metric(attr_recipient,
+                                         attr[area].reshape(1, -1)))
+    return -donor_diff, recipient_diff
 
 
 def objective_func_dict(distance_metric, regions, attr):
