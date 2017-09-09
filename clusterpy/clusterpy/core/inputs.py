@@ -175,7 +175,7 @@ def importArcData(filename):
             data[y] = [y] + dbf.by_row(y)
     else:
         for y in range(dbf.n_records):
-            data[y] = dbf.by_row_(y)
+            data[y] = dbf.by_row(y)
 
     layer.fieldNames = fields
     layer.Y = data
