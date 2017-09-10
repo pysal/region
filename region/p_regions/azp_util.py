@@ -24,19 +24,22 @@ class AllowMoveStrategy(abc.ABC):
         self.attr = None
         self.metric = metric
         self.comp_idx = None
-        self.cache = {}
+        self.objective = float("inf")
 
-    def set_comp_idx(self, comp_idx):
+    def start_new_component(self, initial_labels, comp_idx):
         """
         Parameters
         ----------
-        comp_idx
-            Set the instances `comp_idx` attribute. This method should be
+        initial_labels : :class:`numpy.ndarray`
+
+        comp_idx : :class:`numpy.ndarray`
+            Set the instance's `comp_idx` attribute. This method should be
             called whenever a new connected component is clustered.
         """
         self.comp_idx = comp_idx
         self.attr = self.attr_all[comp_idx]
-        self.cache.clear()
+        self.objective = objective_func_arr(self.metric, initial_labels,
+                                            self.attr)
 
     @abc.abstractmethod
     def __call__(self, moving_area, new_region, labels):
@@ -69,37 +72,15 @@ class AllowMoveAZP(AllowMoveStrategy):
         super().__init__(attr=attr, metric=metric)
 
     def __call__(self, moving_area, new_region, labels):
-        old_region = labels[moving_area]
-        # before move
-        try:
-            obj_val_donor_before = self.cache[old_region]
-        except KeyError:
-            obj_val_donor_before = objective_func_arr(self.metric, labels,
-                                                      self.attr, {old_region})
-            self.cache[old_region] = obj_val_donor_before
-
-        try:
-            obj_val_recipient_before = self.cache[new_region]
-        except KeyError:
-            obj_val_recipient_before = objective_func_arr(self.metric, labels,
-                                                          self.attr,
-                                                          {new_region})
-            self.cache[new_region] = obj_val_recipient_before
-
-        # after move
         donor_diff, recipient_diff = objective_func_diff(
                 self.metric, labels, self.attr, moving_area, new_region)
         diff = donor_diff + recipient_diff
         if diff <= 0:
-            # print("  allowing move because difference {} <= 0".format(diff))
-            # print("  objective value was at {}".format(objective_func_arr(self.metric, labels, self.attr)))
-            # labels[moving_area] = new_region; print("  objective value is now at {}".format(objective_func_arr(self.metric, labels, self.attr))); labels[moving_area] = old_region
-            self.cache[old_region] += donor_diff
-            self.cache[new_region] += recipient_diff
+            # print("  allowing move because diff {} <= 0".format(diff))
+            self.objective += diff
             return True
-
         else:
-            # print("  disallowing move because difference {} <= 0".format(diff))
+            # print("  disallowing move because diff {} > 0".format(diff))
             return False
 
 
@@ -212,7 +193,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         self._decorated_strategy = decorated_strategy
         super().__init__(attr=attr, metric=metric)
 
-    def set_comp_idx(self, comp_idx):
+    def start_new_component(self, comp_idx):
         """
         Parameters
         ----------
@@ -222,7 +203,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         """
         self.spatially_extensive_attr = self.spatially_extensive_attr_all[
                 comp_idx]
-        super().set_comp_idx(comp_idx)
+        super().start_new_component(comp_idx)
 
     def __call__(self, moving_area, new_region, labels, comp_idx):
         spat_ext = self.spatially_extensive_attr

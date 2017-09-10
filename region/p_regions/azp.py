@@ -2,7 +2,6 @@ import abc
 from collections import deque
 import math
 import random
-from functools import reduce
 
 import numpy as np
 import networkx as nx
@@ -255,14 +254,27 @@ class AZP:
         print("initial_clustering", initial_clustering)
         data = data[comp_idx]
         print("data", data)
-        self.allow_move_strategy.set_comp_idx(comp_idx)
         #  step 2: make a list of the M regions
         labels = initial_clustering
 
         # print("Init with: ", initial_clustering)
-        obj_val_start = float("inf")  # since Python 3.5 math.inf also possible
-        obj_val_end = objective_func_arr(self.distance_metric, labels, data)
+        obj_val_start = float("inf")
+        self.allow_move_strategy.start_new_component(initial_clustering, comp_idx)
+        obj_val_end = self.allow_move_strategy.objective
         print("start with obj. val.:", obj_val_end)
+
+        region_neighbors = {}
+        for region in distinct_regions:
+            region_areas = set(np.where(labels == region)[0])
+            # print("region consists of areas", region_areas)
+            # print("adj", adj.todense())
+            neighs = set()
+            for area in region_areas:
+                neighs.update(neighbors(adj, area))
+            region_neighbors[region] = neighs.difference(region_areas)
+        print("RN", region_neighbors)
+        del neighs
+
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
             # print("obj_val:", obj_val_start, "-->", obj_val_end,
@@ -279,27 +291,19 @@ class AZP:
             while distinct_regions:
                 # step 3: select & remove any region K at random from this list
                 print("step 3")
-                region = pop_randomly_from(distinct_regions)
-                print("  chosen region:", region)
+                recipient = pop_randomly_from(distinct_regions)
+                print("  chosen region:", recipient)
                 while True:
                     # step 4: identify a set of zones bordering on members of
                     # region K that could be moved into region K without
                     # destroying the internal contiguity of the donor region(s)
                     print("step 4")
-                    region_areas = np.where(labels == region)[0]
-                    # print("region consists of areas", region_areas)
-                    # print("adj", adj.todense())
-                    neighbors_of_region = reduce(
-                            np.union1d,
-                            (neighbors(adj, area) for area in region_areas))
-                    neighbors_of_region = np.setdiff1d(neighbors_of_region,
-                                                       region_areas)
-                    # print("  neighbors of region", region, "are:")
-                    # print(neighbors_of_region)
+                    # print("  labels:", labels)
+                    # print("  neighbors per region:")
+                    # print(region_neighbors)
                     candidates = []
-                    for neigh in neighbors_of_region:
+                    for neigh in region_neighbors[recipient]:
                         neigh_region = labels[neigh]
-                        # print("  labels:", labels)
                         # print("  We could move area {} from {} to {}".format(neigh, neigh_region, region))
                         # print("  adj before subbing:\n", adj.todense())
                         sub_adj = sub_adj_matrix(
@@ -321,17 +325,38 @@ class AZP:
                     while candidates:
                         print("step 5 loop")
                         cand = pop_randomly_from(candidates)
-                        if self.allow_move_strategy(cand, region, labels):
-                            print("  MOVING {} from {} to {}".format(cand, labels[cand], region))
-                            make_move(cand, region, labels)
+                        if self.allow_move_strategy(cand, recipient, labels):
+                            donor = labels[cand]
+                            print("  MOVING {} from {} to {}".format(cand, donor, recipient))
+                            make_move(cand, recipient, labels)
+
+                            region_neighbors[donor].add(cand)
+                            region_neighbors[recipient].discard(cand)
+
+                            neighs_of_cand = neighbors(adj, cand)
+
+                            recipient_region_areas = set(
+                                    np.where(labels == recipient)[0])
+                            region_neighbors[recipient].update(neighs_of_cand)
+                            region_neighbors[recipient].difference_update(
+                                    recipient_region_areas)
+
+                            donor_region_areas = set(
+                                    np.where(labels == donor)[0])
+                            not_donor_neighs_anymore = set(
+                                    area for area in neighs_of_cand
+                                    if not any(a in donor_region_areas
+                                               for a in neighbors(adj, area)))
+                            print("  donor is losing {} as neighbors".format(not_donor_neighs_anymore))
+                            region_neighbors[donor].difference_update(
+                                    not_donor_neighs_anymore)
                             # print("new labels:\n", labels, sep="")
-                            # print("new obj. val.:", objective_func_arr(self.distance_metric, labels, data))
+                            # print("new obj. val.:", self.allow_move_strategy.objective)
                             break
                     else:
                         break
 
-            obj_val_end = objective_func_arr(self.distance_metric, labels,
-                                             data)
+            obj_val_end = self.allow_move_strategy.objective
         return labels
 
 
@@ -626,7 +651,7 @@ class AZPBasicTabu(AZPTabu):
         print("initial_clustering", initial_clustering)
         data = data[comp_idx]
         print("data", data)
-        self.allow_move_strategy.set_comp_idx(comp_idx)
+        self.allow_move_strategy.start_new_component(comp_idx)
 
         #  step 2: make a list of the M regions
         labels = initial_clustering
@@ -727,27 +752,27 @@ class AZPReactiveTabu(AZPTabu):
         self.k1 = k1
         self.k2 = k2
 
-    def _azp_connected_component(self, adj, initial_clustering, data,
+    def _azp_connected_component(self, adj, initial_labels, data,
                                  comp_idx):
         self.reset_tabu(1)
         # if there is only one region in the initial solution, just return it.
-        distinct_regions = list(np.unique(initial_clustering[comp_idx]))
+        distinct_regions = list(np.unique(initial_labels[comp_idx]))
         if len(distinct_regions) == 1:
-            return initial_clustering
+            return initial_labels
 
         adj = sub_adj_matrix(adj, comp_idx)
         print("comp_adj.shape:", adj.shape)
-        initial_clustering = initial_clustering[comp_idx]
-        print("initial_clustering", initial_clustering)
+        initial_labels = initial_labels[comp_idx]
+        print("initial_clustering", initial_labels)
         data = data[comp_idx]
         print("data", data)
-        self.allow_move_strategy.set_comp_idx(comp_idx)
+        self.allow_move_strategy.start_new_component(comp_idx)
 
         #  step 2: make a list of the M regions
-        labels = initial_clustering
+        labels = initial_labels
 
         # todo: rm print-statements
-        # print("Init with: ", initial_clustering)
+        # print("Init with: ", initial_labels)
         it_since_tabu_len_changed = 0
         obj_val_start = float("inf")
         # step 12: Repeat steps 3-11 until either no further improvements are
