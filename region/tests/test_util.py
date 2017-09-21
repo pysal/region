@@ -1,3 +1,5 @@
+from scipy.sparse import csr_matrix
+import numpy as np
 import networkx as nx
 import pytest
 
@@ -13,68 +15,54 @@ def not_all_elements_equal(iterable):
     return not all_elements_equal(iterable)
 
 
-def test_distribute_regions_among_components__one_area():
-    single_node = nx.Graph()
-    single_node.add_node(0)
-    n_regions = 1
-    result = util.distribute_regions_among_components_nx(n_regions=n_regions,
-                                                         graph=single_node)
-    assert type(result) == dict
-    assert next(iter(result.values())) == n_regions
-
-
-def test_distribute_regions_among_components__no_areas():
-    with pytest.raises(ValueError) as exc_info:
-        no_node = nx.Graph()
-        n_regions = 1
-        util.distribute_regions_among_components_nx(n_regions=n_regions,
-                                                    graph=no_node)
-    assert str(exc_info.value) == "There must be at least one area."
-
-
 def test_assert_feasible__pass_disconnected():
-    graph = nx.Graph()
-    graph.add_nodes_from([1, 2])  # not connected
-    regions = [{1}, {2}]  # not connected
+    adj = csr_matrix(np.array([[0, 0],
+                               [0, 0]]))  # nodes 0 and 1 are not connected ...
+    labels = np.array([0, 1])  # ... and assigned to different regions
     try:
-        util.assert_feasible(regions, graph)
-        util.assert_feasible(regions, graph, n_regions=2)
+        util.assert_feasible(labels, adj)
+        util.assert_feasible(labels, adj, n_regions=2)
     except ValueError:
         pytest.fail()
 
 
 def test_assert_feasible__pass_connected():
-    graph = nx.Graph([(1, 2)])  # nodes 1 & 2 connected
-    # with one region
-    regions = [{1, 2}]
+    adj = csr_matrix(np.array([[0, 1],
+                               [1, 0]]))  # nodes 0 and 1 are connected ...
+    labels = np.array([0, 0])  # ...and (case 1) assigned to the same region
     try:
-        util.assert_feasible(regions, graph)
-        util.assert_feasible(regions, graph, n_regions=1)
-    except ValueError:
-        pytest.fail()
-    # with two regions
-    regions = [{1}, {2}]  # two regions
-    try:
-        util.assert_feasible(regions, graph)
-        util.assert_feasible(regions, graph, n_regions=2)
+        util.assert_feasible(labels, adj)
+        util.assert_feasible(labels, adj, n_regions=1)
     except ValueError:
         pytest.fail()
 
+    labels = np.array([0, 1])  # ...and (case 2) assigned to different regions
+    try:
+        util.assert_feasible(labels, adj)
+        util.assert_feasible(labels, adj, n_regions=2)
+    except ValueError:
+        pytest.fail()
+
+
 def test_assert_feasible__contiguity():
     with pytest.raises(ValueError) as exc_info:
-        graph = nx.Graph()
-        graph.add_nodes_from([1, 2])  # not connected
-        regions = [{1, 2}]  # connected
-        util.assert_feasible(regions, graph)
+        # nodes 0 and 1 are not connected ...
+        adj = csr_matrix(np.array([[0, 0],
+                                   [0, 0]]))
+        # ... but assigned to the same region --> not feasible
+        labels = np.array([0, 0])
+        util.assert_feasible(labels, adj)
     assert "not spatially contiguous" in str(exc_info)
 
 
 def test_assert_feasible__number_of_regions():
     with pytest.raises(ValueError) as exc_info:
-        graph = nx.Graph([(1, 2)])  # nodes 1 & 2 connected
-        regions = [{1, 2}]  # one region
-        n_regions = 2  # let's assume that two regions are required
-        util.assert_feasible(regions, graph, n_regions=n_regions)
+        adj = csr_matrix(np.array([[0, 1],
+                                   [1, 0]]))  # nodes 0 and 1 are connected ...
+        labels = np.array([0, 0])  # ... and assigned to the same region
+        # but this is not feasible under the condition n_regions = 2
+        n_regions = 2
+        util.assert_feasible(labels, adj, n_regions=n_regions)
     assert "The number of regions is" in str(exc_info)
 
 
@@ -101,8 +89,11 @@ def test_pop_randomly_from():
 
 
 def test_AZP_azp_connected_component__one_area():
-    single_node = nx.Graph()
-    single_node.add_node(0)
+    adj = csr_matrix(np.array([[0]]))  # adjacency matrix for a single node
     azp = AZP()
-    region_list = azp._azp_connected_component(single_node, [{0}])
-    assert region_list == [{0}]
+    obtained = azp._azp_connected_component(adj,
+                                            initial_clustering=np.array([0]),
+                                            attr=np.array([123]),
+                                            comp_idx=np.array([0]))
+    desired = np.array([0])
+    assert obtained == desired

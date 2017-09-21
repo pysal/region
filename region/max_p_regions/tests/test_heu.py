@@ -1,6 +1,6 @@
 import networkx as nx
 
-from region.max_p_regions.exact import MaxPRegionsExact
+from region.max_p_regions.heuristics import MaxPRegionsHeu
 from region.tests.util import compare_region_lists, region_list_from_array
 
 from .data import adj, neighbors_dict, gdf, graph, w, optimal_clustering
@@ -13,11 +13,16 @@ from .data import double_attr, double_spatially_extensive_attr, \
                   double_threshold, \
                   double_attr_dict, double_spatially_extensive_attr_dict
 
+import warnings
+warnings.filterwarnings("error")
 
+
+attr = attr.reshape(-1)
+spatially_extensive_attr = spatially_extensive_attr.reshape(-1)
 # ### TESTS WITH SCALAR attr AND spatially_extensive_attr #####################
 # test with csr_matrix
 def test_scipy_sparse_matrix():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_scipy_sparse_matrix(adj, attr,
                                                 spatially_extensive_attr,
                                                 threshold=threshold)
@@ -27,7 +32,7 @@ def test_scipy_sparse_matrix():
 
 # tests with a GeoDataFrame
 def test_geodataframe_basic():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_geodataframe(gdf, attr_str,
                                          spatially_extensive_attr_str,
                                          threshold=threshold)
@@ -35,9 +40,9 @@ def test_geodataframe_basic():
     compare_region_lists(obtained, optimal_clustering)
 
 
-# tests with a dict
+# tests with a dict as areas argument
 def test_dict_basic():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_dict(neighbors_dict, attr_dict,
                                  spatially_extensive_attr_dict,
                                  threshold=threshold)
@@ -48,7 +53,7 @@ def test_dict_basic():
 # tests with Graph
 # ... with dicts as attr and spatially_extensive_attr
 def test_graph_dict_basic():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_networkx(graph, attr_dict,
                                      spatially_extensive_attr_dict,
                                      threshold=threshold)
@@ -61,7 +66,7 @@ def test_graph_str_basic():
     nx.set_node_attributes(graph, attr_str, attr_dict)
     nx.set_node_attributes(graph, spatially_extensive_attr_str,
                            spatially_extensive_attr_dict)
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_networkx(graph, attr_str,
                                      spatially_extensive_attr_str,
                                      threshold=threshold)
@@ -71,7 +76,7 @@ def test_graph_str_basic():
 
 # test with W
 def test_w_basic():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_w(w, attr, spatially_extensive_attr,
                               threshold=threshold)
     result = region_list_from_array(cluster_object.labels_)
@@ -81,7 +86,7 @@ def test_w_basic():
 # ### TESTS WITH NON-SCALAR attr AND spatially_extensive_attr #################
 # test with csr_matrix
 def test_scipy_sparse_matrix_multi_attr():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_scipy_sparse_matrix(
             adj, double_attr, double_spatially_extensive_attr,
             threshold=double_threshold)
@@ -91,7 +96,7 @@ def test_scipy_sparse_matrix_multi_attr():
 
 # tests with a GeoDataFrame
 def test_geodataframe_multi_attr():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_geodataframe(gdf,
                                          [attr_str] * 2,
                                          [spatially_extensive_attr_str] * 2,
@@ -102,7 +107,7 @@ def test_geodataframe_multi_attr():
 
 # tests with a dict as areas argument
 def test_dict_multi_attr():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_dict(neighbors_dict,
                                  double_attr_dict,
                                  double_spatially_extensive_attr_dict,
@@ -114,7 +119,7 @@ def test_dict_multi_attr():
 # tests with Graph
 # ... with dicts as attr and spatially_extensive_attr
 def test_graph_dict_multi_attr():
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_networkx(graph,
                                      double_attr_dict,
                                      double_spatially_extensive_attr_dict,
@@ -128,7 +133,7 @@ def test_graph_str_multi_attr():
     nx.set_node_attributes(graph, attr_str, attr_dict)
     nx.set_node_attributes(graph, spatially_extensive_attr_str,
                            spatially_extensive_attr_dict)
-    cluster_object = MaxPRegionsExact()
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_networkx(graph,
                                      [attr_str] * 2,
                                      [spatially_extensive_attr_str] * 2,
@@ -139,7 +144,8 @@ def test_graph_str_multi_attr():
 
 # test with W
 def test_w_multi_attr():
-    cluster_object = MaxPRegionsExact()
+    print(double_threshold)
+    cluster_object = MaxPRegionsHeu()
     cluster_object.fit_from_w(w, double_attr, double_spatially_extensive_attr,
                               threshold=double_threshold)
     result = region_list_from_array(cluster_object.labels_)
