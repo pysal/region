@@ -5,16 +5,18 @@ import random
 import types
 
 import scipy.sparse.csgraph as csg
+from sklearn.metrics.pairwise import distance_metrics
+from scipy.sparse.dok import dok_matrix
 import numpy as np
 import networkx as nx
-from sklearn.cluster.k_means_ import KMeans
-from sklearn.metrics.pairwise import distance_metrics
-
+import libpysal.api as ps_api
+import pulp
 
 Move = collections.namedtuple("move", "area old_region new_region")
 
 
-def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
+def array_from_dict_values(dct, sorted_keys=None, flat_output=False,
+                           dtype=np.float):
     """
     Return values of the dictionary passed as `dct` argument as an numpy array.
     The values in the returned array are sorted by the keys of `dct`.
@@ -28,26 +30,336 @@ def array_from_dict_values(dct, sorted_keys=None, dtype=np.float):
         this argument. Thus, this argument can be passed to suppress the
         sorting, or for getting a subset of the dictionary's values or to get
         repeated values.
+    flat_output : bool, default: False
+        If True, the returned array will be one-dimensional.
+        If False, the returned array will be two-dimensional with one row per
+        key in `dct`.
     dtype : default: np.float64
         The `dtype` of the returned array.
 
     Returns
     -------
     array : :class:`numpy.ndarray`
+
+    Examples
+    --------
+    >>> dict_flat = {0: 0, 1: 10}
+    >>> dict_it = {0: [0], 1: [10]}
+    >>> desired_flat = np.array([0, 10])
+    >>> desired_2d = np.array([[0],
+    ...                        [10]])
+    >>> flat_flat = array_from_dict_values(dict_flat, flat_output=True)
+    >>> (flat_flat == desired_flat).all()
+    True
+    >>> flat_2d = array_from_dict_values(dict_flat)
+    >>> (flat_2d == desired_2d).all()
+    True
+    >>> it_flat = array_from_dict_values(dict_it, flat_output=True)
+    >>> (it_flat == desired_flat).all()
+    True
+    >>> it_2d = array_from_dict_values(dict_it)
+    >>> (it_2d == desired_2d).all()
+    True
     """
     if sorted_keys is None:
         sorted_keys = sorted(dct)
-    return np.fromiter((dct[key] for key in sorted_keys),
-                       dtype=dtype)
+    iterable_values = isinstance(dct[sorted_keys[0]], collections.Iterable)
+    if iterable_values:
+        it = itertools.chain.from_iterable(dct[key] for key in sorted_keys)
+    else:
+        it = (dct[key] for key in sorted_keys)
+
+    flat_arr = np.fromiter(it, dtype=dtype)
+    if flat_output:
+        return flat_arr
+    return flat_arr.reshape((len(dct), -1))
 
 
-def array_from_region_list(region_list):  # todo: remove after refactoring (use sparse matrices and arrays instead of graphs and region_lists)
-    return array_from_dict_values(region_list_to_dict(region_list))
+def scipy_sparse_matrix_from_dict(neighbors):
+    """
+    Parameters
+    ----------
+    neighbors : dict
+        Each key represents an area. The corresponding value contains the
+        area's neighbors.
+
+    Returns
+    -------
+    adj : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix representing the areas' contiguity relation.
+
+    Examples
+    --------
+    >>> neighbors = {0: {1, 3}, 1: {0, 2, 4}, 2: {1, 5},
+    ...              3: {0, 4}, 4: {1, 3, 5}, 5: {2, 4}}
+    >>> obtained = scipy_sparse_matrix_from_dict(neighbors)
+    >>> desired = np.array([[0, 1, 0, 1, 0, 0],
+    ...                     [1, 0, 1, 0, 1, 0],
+    ...                     [0, 1, 0, 0, 0, 1],
+    ...                     [1, 0, 0, 0, 1, 0],
+    ...                     [0, 1, 0, 1, 0, 1],
+    ...                     [0, 0, 1, 0, 1, 0]])
+    >>> (obtained.todense() == desired).all()
+    True
+    >>> neighbors = {"left": {"middle"},
+    ...              "middle": {"left", "right"},
+    ...              "right": {"middle"}}
+    >>> obtained = scipy_sparse_matrix_from_dict(neighbors)
+    >>> desired = np.array([[0, 1, 0],
+    ...                     [1, 0, 1],
+    ...                     [0, 1, 0]])
+    >>> (obtained.todense() == desired).all()
+    True
+    """
+    n_areas = len(neighbors)
+    name_to_int = {area_name: i for i, area_name in enumerate(neighbors)}
+    adj = dok_matrix((n_areas, n_areas))
+    for i in neighbors:
+        for j in neighbors[i]:
+            adj[name_to_int[i], name_to_int[j]] = 1
+    return adj.tocsr()
+
+
+def scipy_sparse_matrix_from_w(w):
+    """
+
+    Parameters
+    ----------
+    w : :class:`libpysal.weights.weights.W`
+        A W object representing the areas' contiguity relation.
+
+    Returns
+    -------
+    adj : :class:`scipy.sparse.csr_matrix`
+        Adjacency matrix representing the areas' contiguity relation.
+
+    Examples
+    --------
+    >>> import libpysal as ps
+    >>> neighbor_dict = {0: {1}, 1: {0, 2}, 2: {1}}
+    >>> w = ps.weights.W(neighbor_dict)
+    >>> obtained = scipy_sparse_matrix_from_w(w)
+    >>> desired = np.array([[0, 1, 0],
+    ...                     [1, 0, 1],
+    ...                     [0, 1, 0]])
+    >>> (obtained.todense() == desired).all()
+    True
+    """
+    return w.sparse
+
+
+def dict_from_graph_attr(graph, attr, array_values=False):
+    """
+    Parameters
+    ----------
+    graph : networkx.Graph
+
+    attr : str, iterable, or dict
+        If str, then it specifies the an attribute of the graph's nodes.
+        If iterable of strings, then multiple attributes of the graph's nodes
+        are specified.
+        If dict, then each key is a node and each value the corresponding
+        attribute value. (This format is also this function's return format.)
+    array_values : bool, default: False
+        If True, then each value is transformed into a :class:`numpy.ndarray`.
+
+    Returns
+    -------
+    result_dict : dict
+        Each key is a node in the graph.
+        If `array_values` is False, then each value is a list of attribute
+        values corresponding to the key node.
+        If `array_values` is True, then each value this list of attribute
+        values is turned into a :class:`numpy.ndarray`. That requires the
+        values to be shape-compatible for stacking.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> edges = [(0, 1), (1, 2),          # 0 | 1 | 2
+    ...          (0, 3), (1, 4), (2, 5),  # ---------
+    ...          (3, 4), (4,5)]           # 3 | 4 | 5
+    >>> graph = nx.Graph(edges)
+    >>> data_dict = {node: 10*node for node in graph}
+    >>> nx.set_node_attributes(graph, "test_data", data_dict)
+    >>> desired = {key: [value] for key, value in data_dict.items()}
+    >>> dict_from_graph_attr(graph, "test_data") == desired
+    True
+    >>> dict_from_graph_attr(graph, ["test_data"]) == desired
+    True
+    """
+    if isinstance(attr, dict):
+        return attr
+    if isinstance(attr, str):
+        attr = [attr]
+    data_dict = {node: [] for node in graph.nodes()}
+    for a in attr:
+        for node, value in nx.get_node_attributes(graph, a).items():
+            data_dict[node].append(value)
+    if array_values:
+        for node in data_dict:
+            data_dict[node] = np.array(data_dict[node])
+    return data_dict
+
+
+def array_from_graph(graph, attr):
+    """
+
+    Parameters
+    ----------
+    graph : networkx.Graph
+
+    attr : str or iterable
+        If str, then it specifies the an attribute of the graph's nodes.
+        If iterable of strings, then multiple attributes of the graph's nodes
+        are specified.
+
+    Returns
+    -------
+    array : :class:`numpy.ndarray`
+        Array with one row for each node in `graph`.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> edges = [(0, 1), (1, 2),          # 0 | 1 | 2
+    ...          (0, 3), (1, 4), (2, 5),  # ---------
+    ...          (3, 4), (4,5)]           # 3 | 4 | 5
+    >>> graph = nx.Graph(edges)
+    >>> data_dict = {node: 10*node for node in graph}
+    >>> nx.set_node_attributes(graph, "test_data", data_dict)
+    >>> desired = np.array([[0],
+    ...                     [10],
+    ...                     [20],
+    ...                     [30],
+    ...                     [40],
+    ...                     [50]])
+    >>> (array_from_graph(graph, "test_data") == desired).all()
+    True
+    >>> (array_from_graph(graph, ["test_data"]) == desired).all()
+    True
+    >>> (array_from_graph(graph, ["test_data", "test_data"]) ==
+    ...  np.hstack((desired, desired))).all()
+    True
+    """
+    dct = dict_from_graph_attr(graph, attr)
+    return array_from_dict_values(dct)
+
+
+def array_from_graph_or_dict(graph, attr):
+        if isinstance(attr, (str, collections.Iterable)):
+            return array_from_graph(graph, attr)
+        elif isinstance(attr, collections.Mapping):
+            return array_from_dict_values(attr)
+        else:
+            raise ValueError("The `attr` argument must be a string, a list of "
+                             "strings or a dictionary.")
+
+
+def array_from_region_list(region_list):
+    """
+    Parameters
+    ----------
+    region_list : `list`
+        Each list element is an iterable of a region's areas.
+
+    Returns
+    -------
+    labels : :class:`numpy.ndarray`
+        Each element specifies the region of the corresponding area.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> obtained = array_from_region_list([{0, 1, 2, 5}, {3, 4}])
+    >>> desired = np.array([ 0, 0, 0, 1, 1, 0])
+    >>> (obtained == desired).all()
+    True
+    """
+    n_areas = sum(len(region) for region in region_list)
+    labels = np.zeros((n_areas))
+    for region_idx, region in enumerate(region_list):
+        for area in region:
+            labels[area] = region_idx
+    return labels
+
+
+def array_from_df_col(df, attr):
+    """
+    Extract one or more columns from a DataFrame as numpy array.
+
+    Parameters
+    ----------
+    df : Union[DataFrame, GeoDataFrame]
+
+    attr : Union[str, Sequence[str]]
+        The columns' names to extract.
+
+    Returns
+    -------
+    col : :class:`numpy.ndarray`
+        The specified column(s) of the array.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> df = pd.DataFrame({"col1": [1, 2, 3],
+    ...                    "col2": [7, 8, 9]})
+    >>> (array_from_df_col(df, "col1") == np.array([[1],
+    ...                                         [2],
+    ...                                         [3]])).all()
+    True
+    >>> (array_from_df_col(df, ["col1"]) == np.array([[1],
+    ...                                           [2],
+    ...                                           [3]])).all()
+    True
+    >>> (array_from_df_col(df, ["col1", "col2"]) == np.array([[1, 7],
+    ...                                                   [2, 8],
+    ...                                                   [3, 9]])).all()
+    True
+    """
+    value_error = ValueError("The attr argument has to be of one of the "
+                             "following types: str or a sequence of strings.")
+    if isinstance(attr, str):
+        attr = [attr]
+    elif isinstance(attr, collections.Sequence):
+        if not all(isinstance(el, str) for el in attr):
+            raise value_error
+    else:
+        raise value_error
+    return np.array(df[attr])
+
+
+def w_from_gdf(gdf, contiguity):
+    """
+    Get a `W` object from a GeoDataFrame.
+
+    Parameters
+    ----------
+    gdf : GeoDataFrame
+
+    contiguity : {"rook", "queen"}
+
+    Returns
+    -------
+    weights : `W`
+        The contiguity information contained in the `gdf` argument in the form
+        of a W object.
+    """
+    if not isinstance(contiguity, str) or \
+            contiguity.lower() not in ["rook", "queen"]:
+        raise ValueError("The contiguity argument must be either None "
+                         "or one of the following strings: "
+                         '"rook" or"queen".')
+    if contiguity.lower() == "rook":
+        weights = ps_api.Rook.from_dataframe(gdf)
+    else:  # contiguity.lower() == "queen"
+        weights = ps_api.Queen.from_dataframe(gdf)
+    return weights
 
 
 def dataframe_to_dict(df, cols):
     """
-
     Parameters
     ----------
     df : Union[:class:`pandas.DataFrame`, :class:`geopandas.GeoDataFrame`]
@@ -125,50 +437,7 @@ def find_sublist_containing(el, lst, index=False):
             "{} not found in any of the sublists of {}".format(el, lst))
 
 
-def set_distance_metric(instance, metric="euclidean"):  # todo: move to classes (AZP, MaxPHeu,...) or to a new base class
-    """
-    Save the distance metric function specified by the `metric` argument as
-    `distance_metric` attribute in the object passed as `instance` argument.
-
-    Parameters
-    ----------
-    instance : object
-
-    metric : str or function, default: "euclidean"
-        If str, then this string specifies the distance metric (from
-        scikit-learn) to use for calculating the objective function.
-        Possible values are:
-
-        * "cityblock" for sklearn.metrics.pairwise.manhattan_distances
-        * "cosine" for sklearn.metrics.pairwise.cosine_distances
-        * "euclidean" for sklearn.metrics.pairwise.euclidean_distances
-        * "l1" for sklearn.metrics.pairwise.manhattan_distances
-        * "l2" for sklearn.metrics.pairwise.euclidean_distances
-        * "manhattan" for sklearn.metrics.pairwise.manhattan_distances
-
-        If function, then this function should take two arguments and
-        return a scalar value. Furthermore, the following conditions
-        have to be fulfilled:
-
-        1. d(a, b) >= 0, for all a and b
-        2. d(a, b) == 0, if and only if a = b, positive definiteness
-        3. d(a, b) == d(b, a), symmetry
-        4. d(a, c) <= d(a, b) + d(b, c), the triangle inequality
-
-    Examples
-    --------
-    >>> from region.p_regions.azp import AZP
-    >>> from sklearn.metrics.pairwise import manhattan_distances
-    >>> azp = AZP()
-    >>> set_distance_metric(azp, "manhattan")
-    >>> azp.distance_metric == manhattan_distances
-    True
-    """
-    metric = get_distance_metric_function(metric)
-    instance.distance_metric = metric
-
-
-def get_distance_metric_function(metric="euclidean"):
+def get_metric_function(metric="euclidean"):
     """
 
     Parameters
@@ -206,9 +475,11 @@ def get_distance_metric_function(metric="euclidean"):
         except KeyError:
             raise ValueError(
                 "{} is not a known metric. Please use rather one of the "
-                "following metrics: {}".format(tuple(name for name in
-                                               distance_metrics().keys()
-                                               if name != "precomputed")))
+                "following metrics: {}".format(metric,
+                                               tuple(name for name in
+                                                     distance_metrics().keys()
+                                                     if name != "precomputed"))
+            )
     elif callable(metric):
         return metric
     else:
@@ -223,50 +494,6 @@ class MissingMetric(RuntimeError):
 
 def raise_distance_metric_not_set(x, y):
     raise MissingMetric("distance metric not set!")
-
-
-def distribute_regions_among_components_nx(n_regions, graph):  # todo: rm if not needed
-    """
-
-    Parameters
-    ----------
-    n_regions : `int`
-        The overall number of regions.
-    graph : `networkx.Graph`
-        An undirected graph whose number of connected components is not greater
-        than `n_regions`.
-
-    Returns
-    -------
-    result_dict : `dict`
-        Each key (of type `networkx.Graph`) is a connected component of
-        `graph`.
-        Each value is an `int` defining the number of regions in the key
-        component.
-    """
-    # print("distribute_regions_among_components_nx got a ", type(graph))
-    if len(graph) < 1:
-        raise ValueError("There must be at least one area.")
-    if len(graph) < n_regions:
-        raise ValueError("The number of regions must be "
-                         "less than or equal to the number of areas.")
-    comps = list(nx.connected_component_subgraphs(graph, copy=False))
-    n_regions_to_distribute = n_regions
-    result_dict = {}
-    comps_multiplied = []
-    # make sure each connected component has at least one region assigned to it
-    for comp in comps:
-        comps_multiplied += [comp] * (len(comp)-1)
-        result_dict[comp] = 1
-        n_regions_to_distribute -= 1
-    # distribute the rest of the regions to random components with bigger
-    # components being likely to get more regions assigned to them
-    while n_regions_to_distribute > 0:
-        position = random.randrange(len(comps_multiplied))
-        picked_comp = comps_multiplied.pop(position)
-        result_dict[picked_comp] += 1
-        n_regions_to_distribute -= 1
-    return result_dict
 
 
 def make_move(moving_area, new_label, labels):
@@ -294,31 +521,22 @@ def make_move(moving_area, new_label, labels):
     labels[moving_area] = new_label
 
 
-def objective_func(distance_metric, region_list, graph, attr="data"):
-    return sum(distance_metric(graph.node[list(region_list[r])[i]][attr],
-                               graph.node[list(region_list[r])[j]][attr])
-               for r in range(len(region_list))
-               for i in range(len(region_list[r]))
-               for j in range(len(region_list[r]))
-               if i < j)
-
-
-def objective_func_arr(distance_metric, labels_arr, attr,
-                       region_restriction=None):
+def objective_func_arr(labels_arr, attr, region_restriction=None,
+                       metric=get_metric_function("manhattan")):
     """
     Parameters
     ----------
-    distance_metric : function
-        A function taking two arguments and returning a scalar >= 0.
-        Furthermore, the function must fulfill the properties described in the
-        docstring of :meth:`get_distance_metric_function`.
     labels_arr : :class:`numpy.ndarray`
-        Region labels.
+        The areas' region labels.
     attr : :class:`numpy.ndarray`
-
+        The areas' clustering-relevant attributes.
     region_restriction : iterable
         Each element is a (distinct) region label. The calculation will be
         restricted to region labels present in this iterable.
+    metric : function
+        A function taking two arguments and returning a scalar >= 0.
+        Furthermore, the function must fulfill the properties described in the
+        docstring of :meth:`get_metric_function`.
 
     Returns
     -------
@@ -331,104 +549,56 @@ def objective_func_arr(distance_metric, labels_arr, attr,
     >>> from sklearn.metrics.pairwise import distance_metrics
     >>> metric = distance_metrics()["manhattan"]
     >>> labels = np.array([0, 0, 0, 0, 1, 1])
-    >>> attr = np.arange(len(labels))
-    >>> int(objective_func_arr(metric, labels, attr))
+    >>> attr = np.arange(len(labels)).reshape(-1, 1)
+    >>> int(objective_func_arr(labels, attr, metric=metric))
     11
     >>> labels = np.array([0, 0, 0, 0, 1, 1, 2, 2])
-    >>> attr = np.arange(len(labels))
-    >>> int(objective_func_arr(metric, labels, attr, region_restriction={0,1}))
+    >>> attr = np.arange(len(labels)).reshape(-1, 1)
+    >>> int(objective_func_arr(labels, attr, {0,1}, metric))
     11
     """
     if region_restriction is not None:
         regions_set = set(region_restriction)
     else:
         regions_set = set(labels_arr)
-    obj_val = sum(distance_metric(attr[i].reshape(1, -1),
-                                  attr[j].reshape(1, -1))
+    obj_val = sum(metric(attr[i].reshape(1, -1),
+                         attr[j].reshape(1, -1))
                   for r in regions_set
                   for i, j in
                   itertools.combinations(np.where(labels_arr == r)[0], 2))
     return obj_val
 
 
-def objective_func_diff(distance_metric, labels, attr, area, new_region):
+def objective_func_diff(labels, attr, area, new_region, metric):
     """
     Parameters
     ----------
-    distance_metric : function
     labels : :class:`numpy.ndarray`
     attr : :class:`numpy.ndarray`
     area : int
     new_region : int
+    metric : function
 
     Returns
     -------
-    diff : tuple
-        The tuple's first entry is the difference in the objective function
-        in the donor region caused by removing area `area` from it.
-        The tuple's second entry is the difference in the objective function
-        in the recipient region caused by adding area `area` to it.
+    diff : float
+        The change in the objective function caused by moving `area` to
+        `new_region`.
     """
     donor_region = labels[area]
 
     attr_donor = attr[labels == donor_region]
-    donor_diff = sum(distance_metric(attr_donor,
-                                     attr[area].reshape(1, -1)))
+    donor_diff = sum(metric(attr_donor,
+                            attr[area].reshape(1, -1)))
 
     attr_recipient = attr[labels == new_region]
-    recipient_diff = sum(distance_metric(attr_recipient,
-                                         attr[area].reshape(1, -1)))
-    return -donor_diff, recipient_diff
-
-
-def objective_func_dict(distance_metric, regions, attr):
-    """
-    Parameters
-    ----------
-    distance_metric : str or function, default: "euclidean"
-        See the `metric` argument in :func:`region.util.set_distance_metric`.
-    regions : `dict`
-        Each key is an area. Each value is the region it is assigned to.
-    attr : `dict`
-        Each key is an area. Each value is the corresponding attribute.
-
-    Returns
-    -------
-    obj_val : float
-        The objective value is the total heterogeneity (sum of each region's
-        heterogeneity).
-    """
-    return objective_func_list(distance_metric, dict_to_region_list(regions),
-                               attr)
-
-
-def objective_func_list(distance_metric, regions, attr):
-    """
-    Parameters
-    ----------
-    distance_metric : str or function, default: "euclidean"
-        See the `metric` argument in :func:`region.util.set_distance_metric`.
-    regions : `list`
-        Each list element is an iterable of a region's areas.
-    attr : `dict`
-        Each key is an area. Each value is the corresponding attribute.
-
-    Returns
-    -------
-    obj_val : float
-        The objective value is the total heterogeneity (sum of each region's
-        heterogeneity).
-    """
-    # print("regions in objective_func_list:", regions)
-    obj_val = sum(distance_metric(attr[i], attr[j])
-                  for r in regions
-                  for i, j in itertools.combinations(r, 2))
-    return obj_val
+    recipient_diff = sum(metric(attr_recipient,
+                                attr[area].reshape(1, -1)))
+    return recipient_diff - donor_diff
 
 
 def distribute_regions_among_components(component_labels, n_regions):
     r"""
-
     Parameters
     ----------
     component_labels : list
@@ -531,7 +701,7 @@ def _randomly_divide_connected_graph(adj, n_regions):
 
     Parameters
     ----------
-    csgraph : :class:`scipy.sparse.csr_matrix`
+    adj : :class:`scipy.sparse.csr_matrix`
         Adjacency matrix.
     n_regions : int
         The desired number of clusters. Must be > 0 and <= number of nodes.
@@ -586,76 +756,20 @@ def _randomly_divide_connected_graph(adj, n_regions):
     return csg.connected_components(mst)[1]
 
 
-def generate_initial_sol_kmeans(areas, graph, n_regions, random_state):  # todo: rm if not needed
-    """
-
-    Parameters
-    ----------
-    areas : :class:`geopandas.GeoDataFrame`
-
-    graph : networkx.Graph
-
-    n_regions : int
-        Number of regions to divide the graph into.
-    random_state : int or None
-        Random seed for the K-Means algorithm.
-
-    Yields
-    ------
-    result : `dict`
-        Each key must be an area and each value must be the corresponding
-        region-ID. The dict's keys are a connected component of the graph
-        provided to the function.
-    """
-    n_regions_per_comp = distribute_regions_among_components_nx(
-            n_regions, graph)
-    # print("step 1")
-    # step 1: generate a random zoning system of n_regions regions
-    #         from num_areas areas
-    # print(n_regions_per_comp)
-    comp_clusterings_dicts = []
-    for comp, n_regions_in_comp in n_regions_per_comp.items():
-        comp_gdf = areas[areas.index.isin(comp.nodes())]
-        polys = comp_gdf["geometry"]
-        cents = polys.centroid
-        geometry_arr = np.array([[cent.x, cent.y]
-                                 for cent in cents])
-        k_means = KMeans(n_regions_in_comp, random_state=random_state)
-        comp_clustering = {area: region for area, region in zip(
-                           comp.nodes(), k_means.fit(geometry_arr).labels_)}
-        # check feasibility because K-Means can produce solutions violating the
-        # spatial contiguity condition.
-        try:
-            assert_feasible(comp_clustering, graph)
-        except ValueError:
-            regions_list = dict_to_region_list(comp_clustering)
-            for region in regions_list:
-                region_graph = comp.subgraph(region)
-                if not nx.is_connected(region_graph):
-                    # print("Region", region, "produced by K-Means disconnected")
-                    parts = list(nx.connected_components(region_graph))
-                    parts.sort(key=len)
-                    # assign region's smallest parts to neighboring regions
-                    for part in parts[:-1]:
-                        # find neighboring region
-                        neighs = [neigh
-                                  for area in part
-                                  for neigh in nx.neighbors(graph, area)
-                                  if neigh not in part]
-                        neigh = pop_randomly_from(neighs)
-                        neigh_region = comp_clustering[neigh]
-                        # move part to neighboring region
-                        for area in part:
-                            comp_clustering[area] = neigh_region
-        comp_clusterings_dicts.append(comp_clustering)
-    return (c for c in comp_clusterings_dicts)
-
-
 def copy_func(f):
     """
     Return a copy of a function. This is useful e.g. to create aliases (whose
     docstrings can be changed without affecting the original function).
     The implementation is taken from https://stackoverflow.com/a/13503277.
+
+    Parameters
+    ----------
+    f : function
+
+    Returns
+    -------
+    g : function
+        Copy of `f`.
     """
     g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
                            argdefs=f.__defaults__,
@@ -667,7 +781,6 @@ def copy_func(f):
 
 def assert_feasible(solution, adj, n_regions=None):
     """
-
     Parameters
     ----------
     solution : :class:`numpy.ndarray`
@@ -702,14 +815,18 @@ def all_elements_equal(array):
     return np.max(array) == np.min(array)
 
 
-def separate_components(adj, solution):
+def separate_components(adj, labels):
     """
+    Take a labels array and yield modifications of it (one modified array per
+    connected component). The modified array will be unchanged at those indices
+    belonging to the current connected component. Thus it will have integers
+    >= 0 there. At all other indices the Yielded array will be -1.
 
     Parameters
     ----------
     adj : :class:`scipy.sparse.csr_matrix`
         Adjacency matrix representing the contiguity relation.
-    solution : :class:`numpy.ndarray`
+    labels : :class:`numpy.ndarray`
 
     Yields
     ------
@@ -735,9 +852,9 @@ def separate_components(adj, solution):
     >>> sol_island1 = [area%3 for area in range(6)]
     >>> # island 2: all areas are in region 3
     >>> sol_island2 = [3 for area in range(6, 10)]
-    >>> solution = np.array(sol_island1 + sol_island2)
+    >>> labels = np.array(sol_island1 + sol_island2)
     >>>
-    >>> yielded = list(separate_components(adj, solution))
+    >>> yielded = list(separate_components(adj, labels))
     >>> yielded.sort(key=lambda arr: arr[0], reverse=True)
     >>> (yielded[0] == np.array([0, 1, 2, 0, 1, 2, -1, -1, -1, -1])).all()
     True
@@ -748,7 +865,7 @@ def separate_components(adj, solution):
     for comp in set(comp_labels):
         region_labels = -np.ones(len(comp_labels), dtype=np.int32)
         in_comp = comp_labels == comp
-        region_labels[in_comp] = solution[in_comp]
+        region_labels[in_comp] = labels[in_comp]
         yield region_labels
 
 
@@ -792,55 +909,17 @@ def count(arr, el):
     return 0
 
 
-def region_list_to_dict(region_list):
-    """
-
-    Parameters
-    ----------
-    region_list : `list`
-        Each list element is an iterable of a region's areas.
-
-    Returns
-    -------
-    result_dict : `dict`
-        Each key is an area, each value is the corresponding region.
-
-    Examples
-    --------
-    >>> result_dict = region_list_to_dict([{0, 1, 2, 5}, {3, 4, 6, 7, 8}])
-    >>> result_dict == {0: 0, 1: 0, 2: 0, 3: 1, 4: 1, 5: 0, 6: 1, 7: 1, 8: 1}
-    True
-
-    """
-    result_dict = {}
-    for region_idx, region in enumerate(region_list):
-        for area in region:
-            result_dict[area] = region_idx
-    return result_dict
+def check_solver(solver):
+    if not isinstance(solver, str) \
+            or solver.lower() not in ["cbc", "cplex", "glpk", "gurobi"]:
+        raise ValueError("The solver argument must be one of the following"
+                         ' strings: "cbc", "cplex", "glpk", or "gurobi".')
 
 
-def dict_to_region_list(region_dict):
-    """
-    Inverse operation of :func:`region_list_to_dict`.
-
-    Parameters
-    ----------
-    region_dict : dict
-
-    Returns
-    -------
-    region_list : `list`
-
-    Examples
-    --------
-    >>> region_list = dict_to_region_list({0: 0, 1: 0, 2: 0,
-    ...                                    3: 1, 4: 1, 5: 0,
-    ...                                    6: 1, 7: 1, 8: 1})
-    >>> region_list == [{0, 1, 2, 5}, {3, 4, 6, 7, 8}]
-    True
-    """
-    region_list = [set() for _ in range(max(region_dict.values()) + 1)]
-    for area in region_dict:
-        region_list[region_dict[area]].add(area)
-    region_list = [region for region in region_list if region]  # rm empty sets
-    return region_list
+def get_solver_instance(solver_string):
+    solver = {"cbc": pulp.solvers.COIN_CMD,
+              "cplex": pulp.solvers.CPLEX,
+              "glpk": pulp.solvers.GLPK,
+              "gurobi": pulp.solvers.GUROBI}[solver_string.lower()]
+    solver_instance = solver()
+    return solver_instance

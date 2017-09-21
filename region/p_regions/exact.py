@@ -1,57 +1,64 @@
+import collections
 import numbers
 
 from geopandas import GeoDataFrame
+import numpy as np
+import networkx as nx
 from pulp import LpProblem, LpMinimize, LpVariable, LpInteger, lpSum
 
-from region import fit_functions
-from region.fit_functions import check_solver, get_solver_instance
-from region.util import find_sublist_containing, copy_func, \
-    raise_distance_metric_not_set, set_distance_metric
+from region.csgraph_utils import neighbors
+from region.util import array_from_df_col, array_from_dict_values,\
+    array_from_graph_or_dict, array_from_region_list, check_solver, copy_func,\
+    get_metric_function, get_solver_instance, raise_distance_metric_not_set,\
+    scipy_sparse_matrix_from_dict, scipy_sparse_matrix_from_w, w_from_gdf
 
 
-class ClusterExact:
+class PRegionsExact:
     """
     A class for solving the p-regions problem by transforming it into a
     mixed-integer-programming problem (MIP) as described in [DCM2011]_.
 
-    Parameters
-    ----------
-    n_regions : int
-        The number of regions the areas are clustered into.
-
     Attributes
     ----------
-    labels_ : dict
-        Each key is an area and each value the region it has been assigned to.
-    method_ : str
+    labels : :class:`numpy.ndarray`
+        Each element is a region label specifying to which region the
+        corresponding area was assigned to by the last run of a fit-method.
+    method : str
         The method used in the last call of a fit-method for translating the
         p-regions problem into an MIP.
-    solver_ : str
+    metric : function
+        The distance metric specified in the last call of a fit-method.
+    n_regions : int
+        The number of regions the areas were clustered into by the last run of
+        a fit-method.
+    solver : str
         The solver used in the last call of a fit-method.
     """
-    def __init__(self, n_regions):
-        if not isinstance(n_regions, numbers.Integral) or n_regions <= 0:
-            raise ValueError("The n_regions argument must be a positive "
-                             "integer.")
-        self.n_regions = n_regions
+    def __init__(self):
+        self.n_regions = None
         self.labels_ = None
-        self.method_ = None
-        self.solver_ = None
-        self.distance_metric = raise_distance_metric_not_set
+        self.method = None
+        self.solver = None
+        self.metric = raise_distance_metric_not_set
 
+    def fit_from_scipy_sparse_matrix(self, adj, attr, n_regions,
+                                     method="flow", solver="cbc",
+                                     metric="euclidean"):
+        """
+        Solve the p-regions problem as MIP as described in [DCM2011]_.
 
-    def fit_from_dict(self, neighbors_dict, data, method="flow", solver="cbc",
-                      distance_metric="euclidean"):
-        """\
+        The resulting region labels are assigned to the instance's
+        :attr:`labels_` attribute.
+
         Parameters
         ----------
-        neighbors_dict : dict
-            Each key represents an area and each value is an iterable of
-            neighbors of this area.
-        data : dict
-            A dict with the same keys as `neighbors_dict` and values
-            representing the clustering criteria. A value can be scalar (e.g.
-            float or int) or a :class:`numpy.ndarray`.
+        adj : class:`scipy.sparse.csr_matrix`
+            Adjacency matrix representing the areas' contiguity relation.
+        attr : :class:`numpy.ndarray`
+            Array (number of areas x number of attributes) of areas' attributes
+            relevant to clustering.
+        n_regions : `int`
+            Number of desired regions.
         method : {"flow", "order", "tree"}, default: "flow"
             The method to translate the clustering problem into an exact
             optimization model.
@@ -68,160 +75,233 @@ class ClusterExact:
             * "cplex" - the CPLEX solver
             * "glpk" - the GLPK (GNU Linear Programming Kit) solver
             * "gurobi" - the Gurobi Optimizer
-        distance_metric : str or function, default: "euclidean"
+
+        metric : str or function, default: "euclidean"
             See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            :func:`region.util.get_metric_function`.
         """
-        set_distance_metric(self, distance_metric)
+        if not isinstance(n_regions, numbers.Integral) or n_regions <= 0:
+            raise ValueError("The n_regions argument must be a positive "
+                             "integer.")
+        if adj.shape[0] < n_regions:
+            raise ValueError("The number of regions must be less than the "
+                             "number of areas.")
+        if attr.ndim == 1:
+            attr = attr.reshape(adj.shape[0], -1)
         self._check_method(method)
         check_solver(solver)
-
-        if not isinstance(neighbors_dict, dict):
-            raise ValueError("The neighbors_dict argument must be dict.")
-        neighbors_dict = neighbors_dict
-
-        if len(neighbors_dict) < self.n_regions:
-            raise ValueError("The number of regions must be less than the "
-                             "number of neighbors_dict.")
-
-        if not isinstance(data, dict) or data.keys() != neighbors_dict.keys():
-            raise ValueError("The data argument has to be of type dict with "
-                             "the same keys as neighbors_dict.")
-        values_dict = data
+        metric = get_metric_function(metric)
 
         opt_func = {"flow": _flow,
                     "order": _order,
                     "tree": _tree}[method.lower()]
-        result_dict = opt_func(neighbors_dict, values_dict, self.n_regions,
-                               solver, self.distance_metric)
+
+        result_dict = opt_func(adj, attr, n_regions, solver, metric)
         self.labels_ = result_dict
-        self.method_ = method
-        self.solver_ = solver
+        self.n_regions = n_regions
+        self.method = method
+        self.metric = metric
+        self.solver = solver
 
-    fit = copy_func(fit_from_dict)
-    fit.__doc__ = "Alias for :meth:`fit_from_dict`.\n\n" \
-                  + fit_from_dict.__doc__
+    fit = copy_func(fit_from_scipy_sparse_matrix)
+    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix:.\n\n" \
+                  + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_geodataframe(self, areas, data, method="flow", solver="cbc",
-                              distance_metric="euclidean", contiguity="rook"):
+    def fit_from_dict(self, neighbors_dict, attr, n_regions, method="flow",
+                      solver="cbc", metric="euclidean"):
         """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
         Parameters
         ----------
-        areas : GeoDataFrame
+        neighbors_dict : dict
+            Each key represents an area and each value is an iterable of
+            neighbors of this area.
+        attr : dict
+            A dict with the same keys as `neighbors_dict` and values
+            representing the clustering criteria. A value can be scalar (e.g.
+            float or int) or a :class:`numpy.ndarray`.
+        n_regions : int
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        method : str
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        solver : str
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        """
+        if not isinstance(neighbors_dict, dict):
+            raise ValueError("The neighbors_dict argument must be dict.")
 
-        data : str or list
-            The clustering criteria (columns of the GeoDataFrame `areas`) are
+        if not isinstance(attr, dict) or attr.keys() != neighbors_dict.keys():
+            raise ValueError("The attr argument has to be of type dict with "
+                             "the same keys as neighbors_dict.")
+
+        adj = scipy_sparse_matrix_from_dict(neighbors_dict)
+        attr_arr = array_from_dict_values(attr)
+
+        self.fit_from_scipy_sparse_matrix(adj, attr_arr, n_regions,
+                                          method=method, solver=solver,
+                                          metric=metric)
+
+    def fit_from_geodataframe(self, gdf, attr, n_regions, method="flow",
+                              solver="cbc", metric="euclidean",
+                              contiguity="rook"):
+        """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+
+        Parameters
+        ----------
+        gdf : GeoDataFrame
+
+        attr : str or list
+            The clustering criteria (columns of the GeoDataFrame `gdf`) are
             specified as string (for one column) or list of strings (for
             multiple columns).
-        method : str
-            See the corresponding argument in :meth:`fit_from_dict`.
-        solver : str
-            See the corresponding argument in :meth:`fit_from_dict`.
-        contiguity : str
+        n_regions : int
             See the corresponding argument in
-            :func:`region.fit_functions.fit_from_geodataframe`.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
-        """
-        fit_functions.fit_from_geodataframe(self, areas, data, method, solver,
-                                            distance_metric=distance_metric,
-                                            contiguity=contiguity)
+            :meth:`fit_from_scipy_sparse_matrix`.
+        method : str
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        solver : str
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        contiguity : {"rook", "queen"}, default: "rook"
+            Defines the contiguity relationship between areas. Possible
+            contiguity definitions are:
 
-    def fit_from_networkx(self, areas, data, method="flow", solver="cbc",
-                          distance_metric="euclidean"):
+            * "rook" - Rook contiguity.
+            * "queen" - Queen contiguity.
+
+        metric : str or function, default: "euclidean"
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
+        w = w_from_gdf(gdf, contiguity)
+        attr = array_from_df_col(gdf, attr)
+        self.fit_from_w(w, attr, n_regions, method=method, solver=solver,
+                        metric=metric)
+
+    def fit_from_networkx(self, graph, attr, n_regions, method="flow",
+                          solver="cbc", metric="euclidean"):
+        """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+
         Parameters
         ----------
-        areas : `networkx.Graph`
-
-        data : str, list or dict
+        graph : `networkx.Graph`
+            Graph representing the areas' contiguity relation.
+        attr : str, list or dict
             If the clustering criteria are present in the networkx.Graph
-            `areas` as node attributes, then they can be specified as a string
+            `graph` as node attributes, then they can be specified as a string
             (for one criterion) or as a list of strings (for multiple
             criteria).
             Alternatively, a dict can be used with each key being a node of the
-            networkx.Graph `areas` and each value being the corresponding
+            networkx.Graph `graph` and each value being the corresponding
             clustering criterion (a scalar (e.g. `float` or `int`) or a
             :class:`numpy.ndarray`).
-            If there are no clustering criteria are present in the
-            networkx.Graph `areas` as node attributes, then a dictionary must
-            be used for this argument. See the corresponding argument in
-            :meth:`fit_from_dict` for more details about the expected the
-            expected dict.
+            If there are no clustering criteria present in the networkx.Graph
+            `graph` as node attributes, then a dictionary must be used for this
+            argument. Refer to the corresponding argument in
+            :meth:`fit_from_dict` for more details about the expected dict.
+        n_regions : int
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         method : str
-            See the corresponding argument in :meth:`fit_from_dict`.
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         solver : str
-            See the corresponding argument in :meth:`fit_from_dict`.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        fit_functions.fit_from_networkx(self, areas, data, method, solver,
-                                        distance_metric=distance_metric)
+        adj = nx.to_scipy_sparse_matrix(graph)
+        attr = array_from_graph_or_dict(graph, attr)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, method=method,
+                                          solver=solver, metric=metric)
 
-    def fit_from_w(self, areas, data, method="flow", solver="cbc",
-                   distance_metric="euclidean"):
+    def fit_from_w(self, w, attr, n_regions, method="flow", solver="cbc",
+                   metric="euclidean"):
         """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+
         Parameters
         ----------
-        areas : libpysal.weights.W
-
-        data : dict
-            See the corresponding argument in :meth:`fit_from_dict`.
+        w : libpysal.weights.W
+            W object representing the areas' contiguity relation.
+        attr : :class:`numpy.ndarray`
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        n_regions : int
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         method : str
-            See the corresponding argument in :meth:`fit_from_dict`.
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         solver : str
-            See the corresponding argument in :meth:`fit_from_dict`.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            See the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        fit_functions.fit_from_w(self, areas, data, method, solver,
-                                 distance_metric=distance_metric)
+        adj = scipy_sparse_matrix_from_w(w)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, method=method,
+                                          solver=solver, metric=metric)
 
     @staticmethod
     def _check_method(method):
         if not isinstance(method, str) \
                 or method.lower() not in ["flow", "order", "tree"]:
             raise ValueError("The method argument must be one of the following"
-                             ' strings: "flow", "order", or "tree".')
+                             " strings: 'flow', 'order', or 'tree'.")
 
 
-def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
+def _flow(adj, attr, n_regions, solver, metric):
     """
     Parameters
     ----------
-    neighbor_dict : dict
-        The keys represent the areas. The values represent the corresponding
-        neighbors.
-    data : dict
-        See the corresponding argument in :meth:`fit_from_dict`.
+    adj : class:`scipy.sparse.csr_matrix`
+        See the corresponding argument in
+        :meth:`PRegionsExact.fit_from_scipy_sparse_matrix`.
+    attr : :class:`numpy.ndarray`
+        See the corresponding argument in
+        :meth:`PRegionsExact.fit_from_scipy_sparse_matrix`.
     n_regions : int
-        The number of regions the areas are clustered into.
+        See the corresponding argument in
+        :meth:`PRegionsExact.fit_from_scipy_sparse_matrix`.
     solver : str
-        See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
-    distance_metric : function
+        See the corresponding argument in
+        :meth:`PRegionsExact.fit_from_scipy_sparse_matrix`.
+    metric : function
+        A function fulfilling the 4 conditions described in the docsting of
+        :func:`region.util.get_metric_function`.
 
     Returns
     -------
-    result : dict
-        The keys represent the areas. Each value specifies the region an area
-        has been assigned to.
+    result : :class:`numpy.ndarray`
+        A one-dimensional array containing each area's region label.
     """
     print("running FLOW algorithm")  # TODO: rm
     prob = LpProblem("Flow", LpMinimize)
 
     # Parameters of the optimization problem
-    n = len(data)
-    I = list(data.keys())  # index for areas
+    n_areas = adj.shape[0]
+    I = list(range(n_areas))  # index for areas
     II = [(i, j)
           for i in I
           for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
-    d = {(i, j): distance_metric(data[i], data[j])
+    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
          for i, j in II_upper_triangle}
 
     # Decision variables
@@ -231,7 +311,7 @@ def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
         lowBound=0, upBound=1, cat=LpInteger)
     f = LpVariable.dicts(           # The amount of flow (non-negative integer)
         "f",                        # from area i to j in region k.
-        ((i, j, k) for i in I for j in neighbor_dict[i] for k in K),
+        ((i, j, k) for i in I for j in neighbors(adj, i) for k in K),
         lowBound=0, cat=LpInteger)
     y = LpVariable.dicts(  # 1 if area i is assigned to region k. 0 otherwise.
         "y",
@@ -259,19 +339,19 @@ def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
         prob += sum(w[i, k] for i in I) == 1
     # (24) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        for j in neighbor_dict[i]:
+        for j in neighbors(adj, i):
             for k in K:
-                prob += f[i, j, k] <= y[i, k] * (n - n_regions)
+                prob += f[i, j, k] <= y[i, k] * (n_areas - n_regions)
     # (25) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        for j in neighbor_dict[i]:
+        for j in neighbors(adj, i):
             for k in K:
-                prob += f[i, j, k] <= y[j, k] * (n - n_regions)
+                prob += f[i, j, k] <= y[j, k] * (n_areas - n_regions)
     # (26) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
         for k in K:
-            lhs = sum(f[i, j, k] - f[j, i, k] for j in neighbor_dict[i])
-            prob += lhs >= y[i, k] - (n - n_regions) * w[i, k]
+            lhs = sum(f[i, j, k] - f[j, i, k] for j in neighbors(adj, i))
+            prob += lhs >= y[i, k] - (n_areas - n_regions) * w[i, k]
     # (27) in Duque et al. (2011): "The p-Regions Problem"
     for i, j in II_upper_triangle:
         for k in K:
@@ -287,9 +367,8 @@ def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
 
     # Solve the optimization problem
     solver = get_solver_instance(solver)
-    # prob.writeLP("flow")  # todo: rm
     prob.solve(solver)
-    result = {}
+    result = np.zeros(n_areas)
     for i in I:
         for k in K:
             if y[i, k].varValue == 1:
@@ -297,40 +376,40 @@ def _flow(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
     return result
 
 
-def _order(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
+def _order(adj, attr, n_regions, solver, metric):
     """
     Parameters
     ----------
-    neighbor_dict : dict
-        The keys represent the areas. The values represent the corresponding
-        neighbors.
-    data : dict
-        See the corresponding argument in :meth:`fit_from_dict`.
+    adj : class:`scipy.sparse.csr_matrix`
+        Refer to the corresponding argument in :func:`_flow`.
+    attr : :class:`numpy.ndarray`
+        Refer to the corresponding argument in :func:`_flow`.
     n_regions : int
-        The number of regions the areas are clustered into.
+        Refer to the corresponding argument in :func:`_flow`.
     solver : str
-        See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
-    distance_metric : function
+        Refer to the corresponding argument in :func:`_flow`.
+    metric : function
+        Refer to the corresponding argument in :func:`_flow`.
 
     Returns
     -------
-    result : dict
-        The keys represent the areas. Each value specifies the region an area
-        has been assigned to.
+    result : :class:`numpy.ndarray`
+        Refer to the return value in :func:`_flow`.
     """
     print("running ORDER algorithm")  # TODO: rm
     prob = LpProblem("Order", LpMinimize)
 
     # Parameters of the optimization problem
-    n = len(data)
-    I = list(data.keys())  # index for areas
+    n_areas = attr.shape[0]
+    I = list(range(n_areas))  # index for areas
     II = [(i, j)
           for i in I
           for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
-    O = range(n - n_regions)  # index for orders
-    d = {(i, j): distance_metric(data[i], data[j])
+    O = range(n_areas - n_regions)  # index for orders
+    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
          for i, j in II_upper_triangle}
 
     # Decision variables
@@ -359,7 +438,7 @@ def _order(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: av
         for k in K:
             for o in range(1, len(O)):
                     prob += x[i, k, o] <= \
-                            sum(x[j, k, o-1] for j in neighbor_dict[i])
+                            sum(x[j, k, o-1] for j in neighbors(adj, i))
     # (17) in Duque et al. (2011): "The p-Regions Problem"
     for i, j in II_upper_triangle:
         for k in K:
@@ -373,7 +452,7 @@ def _order(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: av
     # Solve the optimization problem
     solver = get_solver_instance(solver)
     prob.solve(solver)
-    result = {}
+    result = np.zeros(n_areas)
     for i in I:
         for k in K:
             for o in O:
@@ -382,38 +461,38 @@ def _order(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: av
     return result
 
 
-def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avoid distance_metric-related warnings!
+def _tree(adj, attr, n_regions, solver, metric):
     """
     Parameters
     ----------
-    neighbor_dict : dict
-        The keys represent the areas. The values represent the corresponding
-        neighbors.
-    data : dict
-        See the corresponding argument in :meth:`fit_from_dict`.
+    adj : class:`scipy.sparse.csr_matrix`
+        Refer to the corresponding argument in :func:`_flow`.
+    attr : :class:`numpy.ndarray`
+        Refer to the corresponding argument in :func:`_flow`.
     n_regions : int
-        The number of regions the areas are clustered into.
+        Refer to the corresponding argument in :func:`_flow`.
     solver : str
-        See the corresponding argument in :meth:`ClusterExact.fit_from_dict`.
-    distance_metric : function
+        Refer to the corresponding argument in :func:`_flow`.
+    metric : function
+        Refer to the corresponding argument in :func:`_flow`.
 
     Returns
     -------
-    result : dict
-        The keys represent the areas. Each value specifies the region an area
-        has been assigned to.
+    result : :class:`numpy.ndarray`
+        Refer to the return value in :func:`_flow`.
     """
     print("running TREE algorithm")  # TODO: rm
     prob = LpProblem("Tree", LpMinimize)
 
     # Parameters of the optimization problem
-    n = len(data)
-    I = list(data.keys())
+    n_areas = attr.shape[0]
+    I = list(range(n_areas))  # index for areas
     II = [(i, j)
           for i in I
           for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
-    d = {(i, j): distance_metric(data[i], data[j])
+    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
          for i, j in II}
     # Decision variables
     t = LpVariable.dicts(
@@ -435,11 +514,11 @@ def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
 
     # Constraints
     # (4) in Duque et al. (2011): "The p-Regions Problem"
-    lhs = lpSum(x[i, j] for i in I for j in neighbor_dict[i])
-    prob += lhs == n - n_regions
+    lhs = lpSum(x[i, j] for i in I for j in neighbors(adj, i))
+    prob += lhs == n_areas - n_regions
     # (5) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        prob += lpSum(x[i, j] for j in neighbor_dict[i]) <= 1
+        prob += lpSum(x[i, j] for j in neighbors(adj, i)) <= 1
     # (6) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
         for j in I:
@@ -451,16 +530,17 @@ def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
         prob += t[i, j] - t[j, i] == 0
     # (8) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        for j in neighbor_dict[i]:
+        for j in neighbors(adj, i):
             prob += x[i, j] <= t[i, j]
     # (9) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        for j in neighbor_dict[i]:
-            prob += u[i] - u[j] + (n - n_regions) * x[i, j] \
-                    + (n - n_regions - 2) * x[j, i] <= n - n_regions - 1
+        for j in neighbors(adj, i):
+            prob += u[i] - u[j] + (n_areas - n_regions) * x[i, j] \
+                    + (n_areas - n_regions - 2) * x[j, i] \
+                    <= n_areas - n_regions - 1
     # (10) in Duque et al. (2011): "The p-Regions Problem"
     for i in I:
-        prob += u[i] <= n - n_regions
+        prob += u[i] <= n_areas - n_regions
         prob += u[i] >= 1
     # (11) in Duque et al. (2011): "The p-Regions Problem"
     # already in LpVariable-definition
@@ -470,7 +550,6 @@ def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
     # Solve the optimization problem
     solver = get_solver_instance(solver)
     prob.solve(solver)
-    result = {}
 
     # build a list of regions like [[0, 1, 2, 5], [3, 4, 6, 7, 8]]
     idx_copy = set(I)
@@ -484,6 +563,6 @@ def _tree(neighbor_dict, data, n_regions, solver, distance_metric):  # todo: avo
                 regions[i].append(other_area)
 
         idx_copy.difference_update(regions[i])
-    for i in I:
-        result[i] = find_sublist_containing(i, regions, index=True)
+
+    result = array_from_region_list(regions)
     return result

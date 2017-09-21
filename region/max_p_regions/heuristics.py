@@ -1,20 +1,18 @@
 import random
 
 import networkx as nx
-import libpysal as ps
-from scipy import sparse as sp
+import libpysal.api as ps_api
 
-from region import fit_functions
 from region.p_regions.azp import AZP
 from region.p_regions.azp_util import AllowMoveAZPMaxPRegions
-from region.util import find_sublist_containing, random_element_from,\
-                        pop_randomly_from,array_from_dict_values,\
-                        array_from_region_list, objective_func_arr, \
-                        set_distance_metric, raise_distance_metric_not_set, \
-    dataframe_to_dict
+from region.util import array_from_df_col, array_from_dict_values, \
+    array_from_graph_or_dict, array_from_region_list, copy_func, \
+    find_sublist_containing, get_metric_function, objective_func_arr,\
+    pop_randomly_from, raise_distance_metric_not_set, random_element_from,\
+    scipy_sparse_matrix_from_w, scipy_sparse_matrix_from_dict, w_from_gdf
 
 
-class MaxPHeu:
+class MaxPRegionsHeu:
     def __init__(self, local_search=None, random_state=None):
         """
         Class offering the implementation of the algorithm for solving the
@@ -35,155 +33,42 @@ class MaxPHeu:
         self.local_search = local_search
         self.random_state = random_state
         random.seed(random_state)
-        self.distance_metric = raise_distance_metric_not_set
-
-    def fit_from_dict(self, neighbor_dict, attr, spatially_extensive_attr,
-                      threshold, max_it=10, distance_metric="euclidean"):
-        """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
-
-        Parameters
-        ----------
-        neighbor_dict : `dict`
-            Each key is an area and each value is an iterable of the key area's
-            neighbors.
-        attr : `dict`
-            Each key is an area and each value is the corresponding attribute
-            which serves as clustering criterion.
-        spatially_extensive_attr :
-            Each key is an area and each value is the corresponding spatial
-            extensive attribute which is used to ensure that the sum of
-            spatially extensive attributes in each region adds up to a
-            threshold defined by the `threshold` argument.
-        threshold : float
-            Lower bound for the sum of `spatially_extensive_attr` within a
-            region.
-        max_it : int, default: 10
-            The maximum number of partitions produced in the algorithm's
-            construction phase.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
-        """
-        n_areas = len(neighbor_dict)
-        adj = sp.dok_matrix((n_areas, n_areas))
-        sorted_areas = sorted(neighbor_dict)
-        for area in sorted_areas:
-            for neighbor in neighbor_dict[area]:
-                adj[area, neighbor] = 1
-        adj = adj.tocsr()
-
-        self.fit_from_scipy_sparse_matrix(adj,
-                                          array_from_dict_values(attr,
-                                                                 sorted_areas),
-                                          spatially_extensive_attr, threshold,
-                                          max_it=max_it,
-                                          distance_metric=distance_metric)
-
-    def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
-                              threshold, max_it=10,
-                              distance_metric="euclidean", contiguity="rook"):
-        """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
-
-        Parameters
-        ----------
-        gdf : :class:`geopandas.GeoDataFrame`
-
-        attr : `str`
-            A string to select a column of the :class:`geopandas.GeoDataFrame`
-            `areas`. The selected data is used for calculating the objective
-            function.
-        spatially_extensive_attr : `str`
-            A string to select a column of the :class:`geopandas.GeoDataFrame`
-            `gdf`. The selected data is used to ensure that the spatially
-            extensive attribute in each region adds up to a threshold defined
-            by the `threshold` argument.
-        threshold : float
-            Lower bound for the sum of `spatially_extensive_attr` within a
-            region.
-        max_it : int, default: 10
-            The maximum number of partitions produced in the algorithm's
-            construction phase.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
-        contiguity : {"rook", "queen"}, default: "rook"
-            See corresponding argument in
-            :func:`region.fit_functions.fit_from_geodataframe`.
-        """
-        if isinstance(spatially_extensive_attr, str):
-            spatially_extensive_attr = [spatially_extensive_attr]
-        else:  # isinstance(data, collections.Sequence)
-            spatially_extensive_attr = list(spatially_extensive_attr)
-        spatially_extensive_attr = dataframe_to_dict(gdf,
-                                                     spatially_extensive_attr)
-        fit_functions.fit_from_geodataframe(self, gdf, attr,
-                                            spatially_extensive_attr,
-                                            threshold, max_it=max_it,
-                                            distance_metric=distance_metric,
-                                            contiguity=contiguity)
-
-    def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
-                          threshold, max_it=10, distance_metric="euclidean"):
-        """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
-
-        Parameters
-        ----------
-        graph : `networkx.Graph`
-            Graph representing the contiguity relation.
-        attr : :class:`numpy.ndarray`
-            Each element specifies an area's attribute which is used for
-            calculating the objective function.
-        spatially_extensive_attr : :class:`numpy.ndarray`
-            Each element specifies an area's spatially extensive attribute
-            which is used to ensure that the sum of spatially extensive
-            attributes in each region adds up to a threshold defined by the
-            `threshold` argument.
-        threshold : float
-            Lower bound for the sum of `spatially_extensive_attr` within a
-            region.
-        max_it : int, default: 10
-            The maximum number of partitions produced in the algorithm's
-            construction phase.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
-        """
-        adj = nx.to_scipy_sparse_matrix(graph)
-        self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
-                                          threshold, max_it=max_it,
-                                          distance_metric=distance_metric)
+        self.metric = raise_distance_metric_not_set
 
     def fit_from_scipy_sparse_matrix(self, adj, attr, spatially_extensive_attr,
-                                     threshold, max_it=10,
-                                     distance_metric="euclidean"):
+                                     threshold, max_it=10, metric="euclidean"):
         """
+        Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
+
+        The resulting region labels are assigned to the instance's
+        :attr:`labels_` attribute.
+
         Parameters
         ----------
         adj : :class:`scipy.sparse.csr_matrix`
-            Sparse matrix representing the contiguity relation.
+            Adjacency matrix representing the areas' contiguity relation.
         attr : :class:`numpy.ndarray`
-            Each element specifies an area's attribute which is used for
-            calculating the objective function.
+            Array (number of areas x number of attributes) of areas' attributes
+            relevant to clustering.
         spatially_extensive_attr : :class:`numpy.ndarray`
-            Each element specifies an area's spatially extensive attribute
-            which is used to ensure that the sum of spatially extensive
-            attributes in each region adds up to a threshold defined by the
-            `threshold` argument.
-        threshold : float
-            Lower bound for the sum of `spatially_extensive_attr` within a
-            region.
+            Array (number of areas x number of attributes) of areas' attributes
+            relevant to ensuring the threshold condition.
+        threshold : numbers.Real or :class:`numpy.ndarray`
+            The lower bound for a region's sum of spatially extensive
+            attributes. The argument's type is numbers.Real if there is only
+            one spatially extensive attribute per area, otherwise it is a
+            one-dimensional array with as many entries as there are spatially
+            extensive attributes per area.
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
-        distance_metric : str or function, default: "euclidean"
+        metric : str or function, default: "euclidean"
             See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            :func:`region.util.get_metric_function`.
         """
-        set_distance_metric(self, distance_metric)
-        weights = ps.weights.weights.WSP(adj).to_W()
+        print("f_f_SCIPY got:\n", attr, "\n", spatially_extensive_attr, "\n", threshold, sep="")
+        self.metric = get_metric_function(metric)
+        weights = ps_api.WSP(adj).to_W()
         areas_dict = weights.neighbors
 
         best_partition = None
@@ -212,27 +97,181 @@ class MaxPHeu:
             feasible_partitions.append(self.assign_enclaves(
                     partition, enclaves, areas_dict, attr))
 
+        for partition in feasible_partitions:
+            print(partition, "\n")
+
         # local search phase
         if self.local_search is None:
             self.local_search = AZP()
         self.local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
-                adj, spatially_extensive_attr, threshold,
+                attr, spatially_extensive_attr, threshold, self.metric,
                 self.local_search.allow_move_strategy)
         for partition in feasible_partitions:
             self.local_search.fit_from_scipy_sparse_matrix(
                     adj, attr, max_p,
-                    initial_sol=array_from_region_list(partition))
+                    initial_labels=array_from_region_list(partition),
+                    metric=self.metric)
             partition = self.local_search.labels_
             # print("optimized partition", partition)
-            obj_value = objective_func_arr(self.distance_metric, partition,
-                                           attr)
+            obj_value = objective_func_arr(partition, attr, metric=self.metric)
             if obj_value < best_obj_value:
                 best_obj_value = obj_value
                 best_partition = partition
         self.labels_ = best_partition
 
+    fit = copy_func(fit_from_scipy_sparse_matrix)
+    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix:.\n\n" \
+                  + fit_from_scipy_sparse_matrix.__doc__
+
+    def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
+                      threshold, max_it=10, metric="euclidean"):
+        """
+        Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
+
+        The resulting region labels are assigned to the instance's
+        :attr:`labels_` attribute.
+
+        Parameters
+        ----------
+        neighbors_dict : dict
+            Each key represents an area and each value is an iterable of
+            neighbors of this area.
+        attr : dict
+            A dict with the same keys as `neighbors_dict` and values
+            representing the attributes for calculating homo-/heterogeneity. A
+            value can be scalar (e.g. `float` or `int`) or a
+            :class:`numpy.ndarray`.
+        spatially_extensive_attr : dict
+            A dict with the same keys as `neighbors_dict` and values
+            representing the spatially extensive attribute (scalar or iterable
+            of scalars). In the max-p-regions problem each region's sum of
+            spatially extensive attributes must be greater than a specified
+            threshold. In case of iterables of scalars as dict-values all
+            elements of the iterable have to fulfill the condition.
+        threshold : numbers.Real or :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        max_it : int, default: 10
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        """
+        if not isinstance(neighbors_dict, dict):
+            raise ValueError("The neighbors_dict argument must be dict.")
+
+        not_same_dict_keys_msg = "The {} argument has to be of type dict " \
+                                 "with the same keys as neighbors_dict."
+
+        if not isinstance(attr, dict) or attr.keys() != neighbors_dict.keys():
+            raise ValueError(not_same_dict_keys_msg.format("attr"))
+
+        if not isinstance(spatially_extensive_attr, dict) or \
+                spatially_extensive_attr.keys() != neighbors_dict.keys():
+            raise ValueError(
+                    not_same_dict_keys_msg.format(spatially_extensive_attr))
+        adj = scipy_sparse_matrix_from_dict(neighbors_dict)
+        attr_arr = array_from_dict_values(attr)
+        spat_ext_attr_arr = array_from_dict_values(spatially_extensive_attr)
+        self.fit_from_scipy_sparse_matrix(adj, attr_arr, spat_ext_attr_arr,
+                                          threshold=threshold, max_it=max_it,
+                                          metric=metric)
+
+    def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
+                              threshold, max_it=10, metric="euclidean",
+                              contiguity="rook"):
+        """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+
+        Parameters
+        ----------
+        gdf : :class:`geopandas.GeoDataFrame`
+
+        attr : str or list
+            The clustering criteria (columns of the GeoDataFrame `gdf`) are
+            specified as string (for one column) or list of strings (for
+            multiple columns).
+        spatially_extensive_attr : str or list
+            The name (`str`) or names (`list` of strings) of column(s) in `gdf`
+            containing the spatially extensive attributes.
+        threshold : numbers.Real or :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        max_it : int, default: 10
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        contiguity : {"rook", "queen"}, default: "rook"
+            Defines the contiguity relationship between areas. Possible
+            contiguity definitions are:
+
+            * "rook" - Rook contiguity.
+            * "queen" - Queen contiguity.
+        """
+        w = w_from_gdf(gdf, contiguity)
+        attr = array_from_df_col(gdf, attr)
+        spat_ext_attr = array_from_df_col(gdf, spatially_extensive_attr)
+
+        self.fit_from_w(w, attr, spat_ext_attr, threshold=threshold,
+                        max_it=max_it, metric=metric)
+
+    def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
+                          threshold, max_it=10, metric="euclidean"):
+        """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+
+        Parameters
+        ----------
+        graph : `networkx.Graph`
+
+        attr : str, list or dict
+            If the clustering criteria are present in the networkx.Graph
+            `graph` as node attributes, then they can be specified as a string
+            (for one criterion) or as a list of strings (for multiple
+            criteria).
+            Alternatively, a dict can be used with each key being a node of the
+            networkx.Graph `graph` and each value being the corresponding
+            clustering criterion (a scalar (e.g. `float` or `int`) or a
+            :class:`numpy.ndarray`).
+            If there are no clustering criteria present in the networkx.Graph
+            `graph` as node attributes, then a dictionary must be used for this
+            argument. Refer to the corresponding argument in
+            :meth:`fit_from_dict` for more details about the expected dict.
+        spatially_extensive_attr : str, list or dict
+            If the spatially extensive attribute is present in the
+            networkx.Graph `graph` as node attributes, then they can be
+            specified as a string (for one attribute) or as a list of
+            strings (for multiple attributes).
+            Alternatively, a dict can be used with each key being a node of the
+            networkx.Graph `graph` and each value being the corresponding
+            spatially extensive attribute (a scalar (e.g. `float` or `int`) or
+            a :class:`numpy.ndarray`).
+            If there are no spatially extensive attributes present in the
+            networkx.Graph `graph` as node attributes, then a dictionary must
+            be used for this argument. Refer to the corresponding argument in
+            :meth:`fit_from_dict` for more details about the expected dict.
+        threshold : numbers.Real or :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        max_it : int, default: 10
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        """
+        adj = nx.to_scipy_sparse_matrix(graph)
+        attr = array_from_graph_or_dict(graph, attr)
+        sp_ext_attr = array_from_graph_or_dict(graph, spatially_extensive_attr)
+        self.fit_from_scipy_sparse_matrix(adj, attr, sp_ext_attr,
+                                          threshold=threshold, max_it=max_it,
+                                          metric=metric)
+
     def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
-                   max_it=10, distance_metric="euclidean"):
+                   max_it=10, metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -248,20 +287,20 @@ class MaxPHeu:
             which is used to ensure that the sum of spatially extensive
             attributes in each region adds up to a threshold defined by the
             `threshold` argument.
-        threshold : float
-            Lower bound for the sum of `spatially_extensive_attr` within a
-            region.
+        threshold : numbers.Real or :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         max_it : int, default: 10
-            The maximum number of partitions produced in the algorithm's
-            construction phase.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        adj = w.sparse
+        adj = scipy_sparse_matrix_from_w(w)
         self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
                                           threshold, max_it=max_it,
-                                          distance_metric=distance_metric)
+                                          metric=metric)
 
     def grow_regions(self, adj, attr, spatially_extensive_attr, threshold):
         """
@@ -276,7 +315,7 @@ class MaxPHeu:
         spatially_extensive_attr : :class:`numpy.ndarray`
             See the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
-        threshold : float
+        threshold : numbers.Real or :class:`numpy.ndarray`
             See the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -289,6 +328,7 @@ class MaxPHeu:
             `result[0]`.
             `result[1]` is a `list` of areas not assigned to any region.
         """
+        # print("grow_regions called with spatially_extensive_attr", spatially_extensive_attr)
         partition = []
         enclave_areas = []
         unassigned_areas = list(range(adj.shape[0]))
@@ -300,8 +340,9 @@ class MaxPHeu:
             area = pop_randomly_from(unassigned_areas)
             # print("seed in area", area)
             assigned_areas.append(area)
-            if spatially_extensive_attr[area] >= threshold:
+            if (spatially_extensive_attr[area] >= threshold).all():
                 # print("  seed --> region :)")
+                # print("because", spatially_extensive_attr[area], ">=", threshold)
                 partition.append({area})
             else:
                 region = {area}
@@ -310,8 +351,8 @@ class MaxPHeu:
                 unassigned_neighs = set(adj[area].nonzero()[1]).difference(
                         assigned_areas)
                 feasible = True
-                spat_ext_attr = spatially_extensive_attr[area]
-                while spat_ext_attr < threshold:
+                spat_ext_attr = spatially_extensive_attr[area].copy()
+                while (spat_ext_attr < threshold).any():
                     # print(" ", spat_ext_attr, "<", threshold, "Need neighs!")
                     # print("  potential neighbors:", unassigned_neighs)
                     if unassigned_neighs:
@@ -341,7 +382,7 @@ class MaxPHeu:
                 # print("  unassigned:", unassigned_areas)
                 # print("  assigned:", assigned_areas)
                 # print()
-        # print("grow_regions produced", partition, "- enclaves:", enclave_areas)
+        # print("grow_regions partit.:", partition, "enclaves:", enclave_areas)
         return partition, enclave_areas
 
     def find_best_area(self, region, candidates, attr):
@@ -363,7 +404,8 @@ class MaxPHeu:
             An element of `candidates` with minimal dissimilarity when being
             moved to the region `region`.
         """
-        candidates = {area: sum(self.distance_metric(attr[area], attr[area2])
+        candidates = {area: sum(self.metric(attr[area].reshape(1, -1),
+                                            attr[area2].reshape(1, -1))
                                 for area2 in region)
                       for area in candidates}
         best_candidates = [area for area in candidates
@@ -414,7 +456,8 @@ class MaxPHeu:
             enclave_areas.remove(area)
         return partition
 
-    def find_best_region_idx(self, area, partition, candidate_regions_idx, attr):
+    def find_best_region_idx(self, area, partition, candidate_regions_idx,
+                             attr):
         """
 
         Parameters
@@ -437,7 +480,8 @@ class MaxPHeu:
             sum of dissimilarities after area `area` is moved to the region.
         """
         dissim_per_idx = {region_idx:
-                          sum(self.distance_metric(attr[area], attr[area2])
+                          sum(self.metric(attr[area].reshape(1, -1),
+                                          attr[area2].reshape(1, -1))
                               for area2 in partition[region_idx])
                           for region_idx in candidate_regions_idx}
         minimum_dissim = min(dissim_per_idx.values())

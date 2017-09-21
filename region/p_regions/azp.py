@@ -5,29 +5,35 @@ import random
 
 import numpy as np
 import networkx as nx
-from scipy import sparse as sp
 
-from region import fit_functions
 from region.csgraph_utils import sub_adj_matrix, neighbors, is_connected
 from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
-from region.util import Move, make_move, assert_feasible, separate_components,\
-                        generate_initial_sol, copy_func, \
-                        array_from_dict_values, set_distance_metric, \
-                        objective_func_arr, pop_randomly_from, count,\
-                        get_distance_metric_function, random_element_from
+from region.util import array_from_df_col, array_from_dict_values, \
+    assert_feasible, copy_func, count, generate_initial_sol, \
+    get_metric_function, make_move, Move, objective_func_arr,\
+    pop_randomly_from, random_element_from, scipy_sparse_matrix_from_w, \
+    separate_components, w_from_gdf, array_from_graph_or_dict, \
+    scipy_sparse_matrix_from_dict
 
 
 class AZP:
+    """
+    Class offering the implementation of the AZP algorithm (see [OR1995]_).
+
+    Attributes
+    ----------
+    labels_ : :class:`numpy.ndarray`
+        Each element is a region label specifying to which region the
+        corresponding area was assigned to by the last run of a fit-method.
+    """
     def __init__(self, allow_move_strategy=None, random_state=None):
         """
-        Class offering the implementation of the AZP algorithm (see [OR1995]_).
-
         Parameters
         ----------
         allow_move_strategy : None or :class:`AllowMoveStrategy`
-            If None, then the AZP algorithm in [1]_ is chosen.
+            If None, then the AZP algorithm in [OR1995]_ is chosen.
             For a different behavior for allowing moves an AllowMoveStrategy
             instance can be passed as argument.
         random_state : None, int, str, bytes, or bytearray
@@ -41,177 +47,208 @@ class AZP:
         wrong_allow_move_arg_msg = "The allow_move_strategy argument must " \
                                    "be either None, or an instance of " \
                                    "AllowMoveStrategy."
-        correct_strategy = isinstance(allow_move_strategy, AllowMoveStrategy)
-        if allow_move_strategy is None or correct_strategy:
+
+        if isinstance(allow_move_strategy, AllowMoveStrategy):
             self.allow_move_strategy = allow_move_strategy
+        elif allow_move_strategy is None:
+            self.allow_move_strategy = AllowMoveAZP()
         else:
             raise ValueError(wrong_allow_move_arg_msg)
 
-        self.distance_metric = None
+        self.metric = None
 
-    def fit_from_scipy_sparse_matrix(self, adj, data, n_regions,
-                                     initial_sol=None,
-                                     distance_metric="euclidean"):
+    def fit_from_scipy_sparse_matrix(self, adj, attr, n_regions,
+                                     initial_labels=None,
+                                     metric="euclidean"):
         """
-        Perform the AZP algorithm as described in [OR1995]_ and assign the
-        resulting region labels to the instance's :attr:`labels_` attribute.
+        Perform the AZP algorithm as described in [OR1995]_.
+
+        The resulting region labels are assigned to the instance's
+        :attr:`labels_` attribute.
 
         Parameters
         ----------
         adj : :class:`scipy.sparse.csr_matrix`
             Adjacency matrix representing the contiguity relation.
-        data : :class:`numpy.ndarray`
-            Array (number of areas x number of attributes) of data according to
-            which the clustering is performed.
+        attr : :class:`numpy.ndarray`
+            Array (number of areas x number of attributes) of areas' attributes
+            relevant to clustering.
         n_regions : `int`
             Number of desired regions.
-        initial_sol : :class:`numpy.ndarray`
-            Array of labels.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            One-dimensional array of labels at the beginning of the algorithm.
+            If None, then a random initial clustering will be generated.
+        metric : str or function, default: "euclidean"
+            Refer to the `metric` argument in
+            :func:`region.util.get_metric_function`.
         """
-        if data.ndim == 1:
-            data = data.reshape(adj.shape[0], -1)
-        metric = get_distance_metric_function(distance_metric)
-        if self.allow_move_strategy is None:
-            self.allow_move_strategy = AllowMoveAZP(attr=data, metric=metric)
-        set_distance_metric(self, metric)
+        if attr.ndim == 1:
+            attr = attr.reshape(adj.shape[0], -1)
+        self.metric = get_metric_function(metric)
+        self.allow_move_strategy.attr_all = attr
+        self.allow_move_strategy.metric = self.metric
         # step 1
-        if initial_sol is not None:
-            assert_feasible(initial_sol, adj, n_regions)
-            initial_sol_gen = separate_components(adj, initial_sol)
+        if initial_labels is not None:
+            assert_feasible(initial_labels, adj, n_regions)
+            initial_labels_gen = separate_components(adj, initial_labels)
         else:
-            initial_sol_gen = generate_initial_sol(adj, n_regions)
-        region_labels = -np.ones(adj.shape[0])
-        for labels_component in initial_sol_gen:
+            initial_labels_gen = generate_initial_sol(adj, n_regions)
+        labels = -np.ones(adj.shape[0])
+        for labels_component in initial_labels_gen:
             in_comp_idx = np.where(labels_component != -1)[0]
             # print("Clustering component ", in_comp_idx)
             labels_component = self._azp_connected_component(
-                    adj, labels_component, data, in_comp_idx)
-            region_labels[in_comp_idx] = labels_component
+                    adj, labels_component, attr, in_comp_idx)
+            labels[in_comp_idx] = labels_component
 
         self.n_regions = n_regions
-        self.labels_ = region_labels
+        self.labels_ = labels
 
     fit = copy_func(fit_from_scipy_sparse_matrix)
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_w(self, w, data, n_regions, initial_sol=None,
-                   distance_metric="euclidean"):
+    def fit_from_w(self, w, attr, n_regions, initial_labels=None,
+                   metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
         w : :class:`libpysal.weights.weights.W`
             W object representing the contiguity relation.
-        data : :class:`numpy.ndarray`
-            Array of data according to which the clustering is performed.
+        attr : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         n_regions : `int`
-            Number of desired regions.
-        initial_sol : :class:`numpy.ndarray`
-            Array of labels.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        adj = w.sparse
-        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
-                                          distance_metric=distance_metric)
+        adj = scipy_sparse_matrix_from_w(w)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
+                                          metric=metric)
 
-    def fit_from_networkx(self, graph, data, n_regions, initial_sol=None,
-                          distance_metric="euclidean"):
+    def fit_from_networkx(self, graph, attr, n_regions, initial_labels=None,
+                          metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
         graph : `networkx.Graph`
             Graph representing the contiguity relation.
-        data : :class:`numpy.ndarray`
-            Array of data according to which the clustering is performed.
+        attr : str, list or dict
+            If the clustering criteria are present in the networkx.Graph
+            `graph` as node attributes, then they can be specified as a string
+            (for one criterion) or as a list of strings (for multiple
+            criteria).
+            Alternatively, a dict can be used with each key being a node of the
+            networkx.Graph `graph` and each value being the corresponding
+            clustering criterion (a scalar (e.g. `float` or `int`) or a
+            :class:`numpy.ndarray`).
+            If there are no clustering criteria present in the networkx.Graph
+            `graph` as node attributes, then a dictionary must be used for this
+            argument. Refer to the corresponding argument in
+            :meth:`fit_from_dict` for more details about the expected dict.
         n_regions : `int`
-            Number of desired regions.
-        initial_sol : :class:`numpy.ndarray`
-            Array of labels.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        initial_labels : str or dict or None, default: None
+            If str, then the string names the graph's attribute holding the
+            information about the initial clustering.
+            If dict, then each key is a node and each value is the region the
+            key area is assigned to at the beginning of the algorithm.
+            If None, then a random initial clustering will be generated.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = nx.to_scipy_sparse_matrix(graph)
-        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol)
+        attr = array_from_graph_or_dict(graph, attr)
+        if initial_labels is not None:
+            initial_labels = array_from_graph_or_dict(graph, initial_labels)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
+                                          metric=metric)
 
-    def fit_from_geodataframe(self, gdf, data, n_regions, contiguity="rook",
-                              initial_sol=None, distance_metric="euclidean"):
+    def fit_from_geodataframe(self, gdf, attr, n_regions, contiguity="rook",
+                              initial_labels=None, metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
         gdf : :class:`geopandas.GeoDataFrame`
 
-        data : `str` or `list`
-            The clustering criteria (columns of the GeoDataFrame `areas`) are
-            specified as string (for one column) or list of strings (for
-            multiple columns).
+        attr : `str` or `list`
+            The clustering-relevant attributes (columns of the GeoDataFrame
+            `gdf`) are specified as string (for one column) or list of strings
+            (for multiple columns).
         n_regions : `int`
-            Number of desired regions.
-        contiguity : `str`
-            See the corresponding argument in
-            :func:`region.fit_functions.fit_from_geodataframe`.
-        initial_sol : :class:`numpy.ndarray`
-            Array of labels.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
-        """
-        fit_functions.fit_from_geodataframe(self, gdf, data, n_regions,
-                                            contiguity=contiguity,
-                                            initial_sol=initial_sol,
-                                            distance_metric=distance_metric)
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        contiguity : {"rook", "queen"}, default: "rook"
+            Defines the contiguity relationship between areas. Possible
+            contiguity definitions are:
 
-    def fit_from_dict(self, neighbor_dict, data, n_regions, initial_sol=None,
-                      distance_metric="euclidean"):
+            * "rook" - Rook contiguity.
+            * "queen" - Queen contiguity.
+
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        w = w_from_gdf(gdf, contiguity)
+        attr = array_from_df_col(gdf, attr)
+        self.fit_from_w(w, attr, n_regions, initial_labels, metric=metric)
+
+    def fit_from_dict(self, neighbor_dict, attr, n_regions,
+                      initial_labels=None, metric="euclidean"):
+        """
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
         neighbor_dict : `dict`
             Each key is an area and each value is an iterable of the key area's
             neighbors.
-        data : `dict`
-            Each key is an area and each value is the corresponding attribute
-            which serves as clustering criterion
+        attr : `dict`
+            Each key is an area and each value is the corresponding
+            clustering-relevant attribute.
         n_regions : `int`
-            Number of desired regions.
-        initial_sol : `dict`
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        initial_labels : `dict` or None, default: None
             Each key represents an area. Each value represents the region, the
-            corresponding area is assigned to initially.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            corresponding area is assigned to at the beginning of the
+            algorithm.
+            If None, then a random initial clustering will be generated.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
         """
-        n_areas = len(neighbor_dict)
-        adj = sp.dok_matrix((n_areas, n_areas))
         sorted_areas = sorted(neighbor_dict)
-        for area in sorted_areas:
-            for neighbor in neighbor_dict[area]:
-                adj[area, neighbor] = 1
-        adj = adj.tocsr()
 
-        if initial_sol is not None:
-            initial_sol = array_from_dict_values(initial_sol, sorted_areas,
-                                                 dtype=np.int32)
-        self.fit_from_scipy_sparse_matrix(adj,
-                                          array_from_dict_values(data,
-                                                                 sorted_areas),
-                                          n_regions, initial_sol,
-                                          distance_metric=distance_metric)
+        adj = scipy_sparse_matrix_from_dict(neighbor_dict)
+        attr_arr = array_from_dict_values(attr, sorted_areas)
 
-    def _azp_connected_component(self, adj, initial_clustering, data,
+        if initial_labels is not None:
+            initial_labels = array_from_dict_values(initial_labels,
+                                                    sorted_areas,
+                                                    flat_output=True,
+                                                    dtype=np.int32)
+        self.fit_from_scipy_sparse_matrix(adj, attr_arr, n_regions,
+                                          initial_labels, metric=metric)
+
+    def _azp_connected_component(self, adj, initial_clustering, attr,
                                  comp_idx):
         """
         Implementation of the AZP algorithm for a spatially connected set of
@@ -227,7 +264,7 @@ class AZP:
             Array of labels. The array's shape is (N) where N denotes the
             number of *all* areas (not only those that are in a connected
             component).
-        data : :class:`numpy.ndarray`
+        attr : :class:`numpy.ndarray`
             Clustering criterion. The array's shape is (N) where N denotes the
             number of *all* areas (not only those that are in a connected
             component).
@@ -235,12 +272,15 @@ class AZP:
             Indices of all areas belonging to a connected component of the
             graph represented by the adjacency matrix `adj`. Only those areas
             specified by this argument are considered when the method is
-            executed.
+            executed. The array's shape is (C) where C is the number of areas
+            in the currently considered connected component.
 
         Returns
         -------
-        labels_copy : `list`
-            Each element is an iterable of areas representing a region.
+        labels : :class:`numpy.ndarray`
+            Array of region labels after the AZP algorithm has been performed.
+            Only region labels of the currently considered connected component
+            are returned, thus the array's shape equals that of `comp_idx`.
         """
         # if there is only one region in the initial solution, just return it.
         distinct_regions = list(np.unique(initial_clustering[comp_idx]))
@@ -252,14 +292,13 @@ class AZP:
         print("comp_adj.shape:", adj.shape)
         initial_clustering = initial_clustering[comp_idx]
         print("initial_clustering", initial_clustering)
-        data = data[comp_idx]
-        print("data", data)
         #  step 2: make a list of the M regions
         labels = initial_clustering
 
         # print("Init with: ", initial_clustering)
         obj_val_start = float("inf")
-        self.allow_move_strategy.start_new_component(initial_clustering, comp_idx)
+        self.allow_move_strategy.start_new_component(initial_clustering,
+                                                     comp_idx)
         obj_val_end = self.allow_move_strategy.objective
         print("start with obj. val.:", obj_val_end)
 
@@ -277,11 +316,11 @@ class AZP:
 
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
-            # print("obj_val:", obj_val_start, "-->", obj_val_end,
-            #       "...continue...")
+            print("obj_val:", obj_val_start, "-->", obj_val_end,
+                  "...continue...")
             # print("=" * 45)
             # print("step 7")
-            obj_val_start = obj_val_end
+            obj_val_start = float(obj_val_end)
             print("step 2")
             distinct_regions = distinct_regions_copy.copy()
             # step 6: when the list for region K is exhausted return to step 3
@@ -304,13 +343,10 @@ class AZP:
                     candidates = []
                     for neigh in region_neighbors[recipient]:
                         neigh_region = labels[neigh]
-                        # print("  We could move area {} from {} to {}".format(neigh, neigh_region, region))
-                        # print("  adj before subbing:\n", adj.todense())
                         sub_adj = sub_adj_matrix(
                                 adj,
                                 np.where(labels == neigh_region)[0],
                                 wo_nodes=neigh)
-                        # print("  submatrix:\n", sub_adj.todense())
                         if is_connected(sub_adj):
                             # if area is alone in its region, it must stay
                             if count(labels, neigh_region) > 1:
@@ -327,7 +363,8 @@ class AZP:
                         cand = pop_randomly_from(candidates)
                         if self.allow_move_strategy(cand, recipient, labels):
                             donor = labels[cand]
-                            print("  MOVING {} from {} to {}".format(cand, donor, recipient))
+                            print("  MOVING {} from {} to {}".format(
+                                    cand, donor, recipient))
                             make_move(cand, recipient, labels)
 
                             region_neighbors[donor].add(cand)
@@ -347,25 +384,55 @@ class AZP:
                                     area for area in neighs_of_cand
                                     if not any(a in donor_region_areas
                                                for a in neighbors(adj, area)))
-                            print("  donor is losing {} as neighbors".format(not_donor_neighs_anymore))
                             region_neighbors[donor].difference_update(
                                     not_donor_neighs_anymore)
-                            # print("new labels:\n", labels, sep="")
-                            # print("new obj. val.:", self.allow_move_strategy.objective)
+                            print("improved objective to {}".format(
+                                    float(self.allow_move_strategy.objective)))
                             break
                     else:
+                        print(self.allow_move_strategy, "denied move.")
                         break
-
-            obj_val_end = self.allow_move_strategy.objective
+            obj_val_end = float(self.allow_move_strategy.objective)
         return labels
 
 
 class AZPSimulatedAnnealing:
+    """
+    Class offering the implementation of the AZP-SA algorithm (see [OR1995]_).
+
+    Attributes
+    ----------
+    labels_ : :class:`numpy.ndarray`
+        Each element is a region label specifying to which region the
+        corresponding area was assigned to by the last run of a fit-method.
+    """
     def __init__(self, init_temperature=None,
-                 max_iterations=float("inf"), min_sa_moves=0,
+                 max_iterations=float("inf"), sa_moves_term=10,
                  nonmoving_steps_before_stop=3,
                  repetitions_before_termination=5, random_state=None):
-
+        """
+        Parameters
+        ----------
+        init_temperature : float
+            The initial temperature used in the simulated annealing algorithm.
+        max_iterations : int or {float("inf")}, default: float("inf")
+            Termination condition for step b: Terminate if the AZP algorithm
+            has run for `max_iterations` times.
+        sa_moves_term : int, default: 0
+            Termination condition for step b: Count the SA-moves made by the
+            repeated runs of the AZP (modified in step 5) and terminate after
+            the AZP run that made the cumulative number of SA-moves reach or
+            exceed `sa_moves_term`.
+        nonmoving_steps_before_stop : int, default: 3
+            Termination condition: Repeat steps b and c until no further moves
+            occur for `nonmoving_steps_before_stop` times.
+        repetitions_before_termination : int, default: 5
+            Termination condition not present in [OR1995]_: Terminate if the
+            AZP runs returned a given solution for
+            `repetitions_before_termination` times.
+        random_state : None, int, str, bytes, or bytearray
+            Random seed.
+        """
         self.allow_move_strategy = None
         self.azp = None
 
@@ -374,12 +441,10 @@ class AZPSimulatedAnnealing:
         else:
             raise NotImplementedError("TODO")  # todo
 
-        self.labels_ = None
-
         self.maxit = max_iterations
-        self.min_sa_moves = min_sa_moves
+        self.sa_moves_term = sa_moves_term
 
-        self.min_sa_moves_reached = False
+        self.sa_moves_term_reached = False
         self.move_made = False
         self.nonmoving_steps_before_stop = nonmoving_steps_before_stop
 
@@ -388,138 +453,143 @@ class AZPSimulatedAnnealing:
 
         self.random_state = random_state
 
-    def fit_from_geodataframe(self, gdf, data, n_regions,
-                              contiguity="rook",initial_sol=None,
-                              cooling_factor=0.85,
-                              distance_metric="euclidean"):
+        self.n_regions = None
+        self.metric = None
+
+    def fit_from_geodataframe(self, gdf, attr, n_regions,
+                              contiguity="rook", initial_labels=None,
+                              cooling_factor=0.85, metric="euclidean"):
         """
         Parameters
         ----------
         gdf : :class:`geopandas.GeoDataFrame`
-            See the corresponding argument in
-            :func:`AZP.fit_from_geodataframe`.
-        data : `str` or `list`
-            See the corresponding argument in
-            :func:`AZP.fit_from_geodataframe`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
+        attr : `str` or `list`
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
         n_regions : `int`
-            See the corresponding argument in
-            :func:`AZP.fit_from_geodataframe`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
         contiguity : `str`
-            See the corresponding argument in
-            :func:`AZP.fit_from_geodataframe`.
-        initial_sol : :class:`numpy.ndarray`
-            See the corresponding argument in
-            :func:`AZP.fit_from_geodataframe`.
-        cooling_factor : float
-            Float :math:`\\in (0, 1)` specifying the cooling factor for the
-            simulated annealing.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
+        cooling_factor : float, default: 0.85
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_geodataframe`.
         """
-        fit_functions.fit_from_geodataframe(
-                self, gdf, data, n_regions, contiguity=contiguity,
-                initial_sol=initial_sol, cooling_factor=cooling_factor,
-                distance_metric=distance_metric)
+        w = w_from_gdf(gdf, contiguity)
+        attr = array_from_df_col(gdf, attr)
+        self.fit_from_w(w, attr, n_regions, initial_labels,
+                        cooling_factor=cooling_factor, metric=metric)
 
-    def fit_from_dict(self, neighbor_dict, data, n_regions, initial_sol=None,
-                      cooling_factor=0.85, distance_metric="euclidean"):
+    def fit_from_dict(self, neighbor_dict, attr, n_regions,
+                      initial_labels=None, cooling_factor=0.85,
+                      metric="euclidean"):
         """
         Parameters
         ----------
         neighbor_dict : `dict`
-            See the corresponding argument in :func:`AZP.fit_from_dict`.
-        data : `dict`
-            See the corresponding argument in :func:`AZP.fit_from_dict`.
+            Refer to the corresponding argument in :meth:`AZP.fit_from_dict`.
+        attr : `dict`
+            Refer to the corresponding argument in :meth:`AZP.fit_from_dict`.
         n_regions : `int`
-            See the corresponding argument in :func:`AZP.fit_from_dict`.
-        initial_sol : `dict`
-            See the corresponding argument in :func:`AZP.fit_from_dict`.
-        cooling_factor : float
-            Float :math:`\\in (0, 1)` specifying the cooling factor for the
-            simulated annealing.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in :meth:`AZP.fit_from_dict`.
+        initial_labels : `dict` or None, default: None
+            Refer to the corresponding argument in :meth:`AZP.fit_from_dict`.
+        cooling_factor : float, default: 0.85
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in :meth:`AZP.fit_from_dict`.
         """
-        n_areas = len(neighbor_dict)
-        adj = sp.dok_matrix((n_areas, n_areas))
         sorted_areas = sorted(neighbor_dict)
-        for area in sorted_areas:
-            for neighbor in neighbor_dict[area]:
-                adj[area, neighbor] = 1
-        adj = adj.tocsr()
+        adj = scipy_sparse_matrix_from_dict(neighbor_dict)
+        attr_arr = array_from_dict_values(attr, sorted_areas)
 
-        if initial_sol is not None:
-            initial_sol = array_from_dict_values(initial_sol, sorted_areas,
-                                                 dtype=np.int32)
+        if initial_labels is not None:
+            initial_labels = array_from_dict_values(initial_labels,
+                                                    sorted_areas,
+                                                    flat_output=True,
+                                                    dtype=np.int32)
         self.fit_from_scipy_sparse_matrix(
-                adj,
-                array_from_dict_values(data, sorted_areas),
-                n_regions,
-                initial_sol=initial_sol,
-                cooling_factor=cooling_factor,
-                distance_metric=distance_metric)
+                adj, attr_arr, n_regions, initial_labels=initial_labels,
+                cooling_factor=cooling_factor, metric=metric)
 
-    def fit_from_networkx(self, graph, data, n_regions, initial_sol=None,
-                          cooling_factor=0.85, distance_metric="euclidean"):
+    def fit_from_networkx(self, graph, attr, n_regions, initial_labels=None,
+                          cooling_factor=0.85, metric="euclidean"):
         """
         Parameters
         ----------
         graph : `networkx.Graph`
-            See the corresponding argument in :func:`AZP.fit_from_networkx`.
-        data : :class:`numpy.ndarray`
-            See the corresponding argument in :func:`AZP.fit_from_networkx`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_networkx`.
+        attr : str, list or dict
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_networkx`.
         n_regions : `int`
-            See the corresponding argument in :func:`AZP.fit_from_networkx`.
-        initial_sol : :class:`numpy.ndarray`
-            See the corresponding argument in :func:`AZP.fit_from_networkx`.
-        cooling_factor : float
-            Float :math:`\\in (0, 1)` specifying the cooling factor for the
-            simulated annealing.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_networkx`.
+        initial_labels : str or dict or None, default: None
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_networkx`.
+        cooling_factor : float, default: 0.85
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_networkx`.
         """
         adj = nx.to_scipy_sparse_matrix(graph)
-        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
+        attr = array_from_graph_or_dict(graph, attr)
+        if initial_labels is not None:
+            initial_labels = array_from_graph_or_dict(graph, initial_labels)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
                                           cooling_factor=cooling_factor,
-                                          distance_metric=distance_metric)
+                                          metric=metric)
 
-    def fit_from_scipy_sparse_matrix(self, adj, data, n_regions,
-                                     initial_sol=None, cooling_factor=0.85,
-                                     distance_metric="euclidean"):
+    def fit_from_scipy_sparse_matrix(self, adj, attr, n_regions,
+                                     initial_labels=None, cooling_factor=0.85,
+                                     metric="euclidean"):
         """
         Parameters
         ----------
         adj : :class:`scipy.sparse.csr_matrix`
-            See the corresponding argument in
-            :func:`AZP.fit_from_scipy_sparse_matrix`.
-        data : :class:`numpy.ndarray`
-            See the corresponding argument in
-            :func:`AZP.fit_from_scipy_sparse_matrix`.
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_scipy_sparse_matrix`.
+        attr : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_scipy_sparse_matrix`.
         n_regions : `int`
-            See the corresponding argument in
-            :func:`AZP.fit_from_scipy_sparse_matrix`.
-        initial_sol : :class:`numpy.ndarray`
-            See the corresponding argument in
-            :func:`AZP.fit_from_scipy_sparse_matrix`.
-        cooling_factor : float
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_scipy_sparse_matrix`.
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_scipy_sparse_matrix`.
+        cooling_factor : float, default: 0.85
             Float :math:`\\in (0, 1)` specifying the cooling factor for the
             simulated annealing.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in
+            :meth:`AZP.fit_from_scipy_sparse_matrix`.
         """
         if not (0 < cooling_factor < 1):
             raise ValueError("The cooling_factor argument must be greater "
                              "than 0 and less than 1")
-        metric = get_distance_metric_function(distance_metric)
+        if attr.ndim == 1:
+            attr = attr.reshape(adj.shape[0], -1)
+        self.metric = get_metric_function(metric)
         self.allow_move_strategy = AllowMoveAZPSimulatedAnnealing(
-                attr=data, metric=metric,
+                attr=attr, metric=self.metric,
                 init_temperature=self.init_temperature,
-                min_sa_moves=self.min_sa_moves)
-        self.allow_move_strategy.register_min_sa_moves(self.sa_moves_alert)
+                sa_moves_term=self.sa_moves_term)
+        self.allow_move_strategy.register_sa_moves_term(self.sa_moves_alert)
         self.allow_move_strategy.register_move_made(self.move_made_alert)
 
         self.azp = AZP(allow_move_strategy=self.allow_move_strategy,
@@ -533,32 +603,35 @@ class AZPSimulatedAnnealing:
         while nonmoving_steps < self.nonmoving_steps_before_stop:
             # print(("#"*60 + "\n") * 2 + "STEP B")
             it = 0
-            self.min_sa_moves_reached = False
+            self.sa_moves_term_reached = False
+            self.allow_move_strategy.reset()
             # step b
-            while it < self.maxit and not self.min_sa_moves_reached:
+            while it < self.maxit and not self.sa_moves_term_reached:
                 it += 1
-                old_sol = initial_sol
-                self.azp.fit_from_scipy_sparse_matrix(adj, data, n_regions,
-                                                      initial_sol, metric)
-                initial_sol = self.azp.labels_
+                old_sol = initial_labels
+                self.azp.fit_from_scipy_sparse_matrix(adj, attr, n_regions,
+                                                      initial_labels,
+                                                      self.metric)
+                initial_labels = self.azp.labels_
 
                 # print("old_sol", old_sol)
-                # print("new_sol", initial_sol)
+                # print("new_sol", initial_labels)
                 if old_sol is not None:
-                    # print("EQUAL" if (old_sol == initial_sol).all()
+                    # print("EQUAL" if (old_sol == initial_labels).all()
                     #       else "NOT EQUAL")
-                    if (old_sol == initial_sol).all():
+                    if (old_sol == initial_labels).all():
                         # print("BREAK")
                         break
             # print("visited", self.visited)
             # added termination condition (not in Openshaw & Rao (1995))
-            # print(initial_sol)
-            if self.visited.count(tuple(initial_sol)) >= self.reps_before_termination:
-                # print("VISITED", initial_sol, "FOR",
-                #       self.reps_before_termination,
-                #       "TIMES --> TERMINATING.")
+            # print(initial_labels)
+            if self.visited.count(tuple(initial_labels)) \
+                    >= self.reps_before_termination:
+                print("VISITED", initial_labels, "FOR",
+                      self.reps_before_termination,
+                      "TIMES --> TERMINATING.")
                 break
-            self.visited.append(tuple(initial_sol))
+            self.visited.append(tuple(initial_labels))
             # step c
             # print(("#"*60 + "\n") * 2 + "STEP C")
             t *= cooling_factor
@@ -570,41 +643,43 @@ class AZPSimulatedAnnealing:
             else:
                 # print("NO MOVE MADE")
                 nonmoving_steps += 1
-        self.labels_ = initial_sol
+        self.labels_ = initial_labels
 
-    def fit_from_w(self, w, data, n_regions, initial_sol=None,
-                   cooling_factor=0.85, distance_metric="euclidean"):
+    def fit_from_w(self, w, attr, n_regions, initial_labels=None,
+                   cooling_factor=0.85, metric="euclidean"):
         """
         Parameters
         ----------
         w : :class:`libpysal.weights.weights.W`
-            See the corresponding argument in :func:`AZP.fit_from_w`.
-        data : :class:`numpy.ndarray`
-            See the corresponding argument in :func:`AZP.fit_from_w`.
+            Refer to the corresponding argument in :meth:`AZP.fit_from_w`.
+        attr : :class:`numpy.ndarray`
+            Refer to the corresponding argument in :meth:`AZP.fit_from_w`.
         n_regions : `int`
-            See the corresponding argument in :func:`AZP.fit_from_w`.
-        initial_sol : :class:`numpy.ndarray`
-            See the corresponding argument in :func:`AZP.fit_from_w`.
-        cooling_factor : float
-            Float :math:`\\in (0, 1)` specifying the cooling factor for the
-            simulated annealing.
-        distance_metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            Refer to the corresponding argument in :meth:`AZP.fit_from_w`.
+        initial_labels : :class:`numpy.ndarray` or None, default: None
+            Refer to the corresponding argument in :meth:`AZP.fit_from_w`.
+        cooling_factor : float, default: 0.85
+            Refer to the corresponding argument in
+            :meth:`fit_from_scipy_sparse_matrix`.
+        metric : str or function, default: "euclidean"
+            Refer to the corresponding argument in :meth:`AZP.fit_from_w`.
         """
-        adj = w.sparse
-        self.fit_from_scipy_sparse_matrix(adj, data, n_regions, initial_sol,
+        adj = scipy_sparse_matrix_from_w(w)
+        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
                                           cooling_factor=cooling_factor,
-                                          distance_metric=distance_metric)
+                                          metric=metric)
 
     def sa_moves_alert(self):
-        self.min_sa_moves_reached = True
+        self.sa_moves_term_reached = True
 
     def move_made_alert(self):
         self.move_made = True
 
 
 class AZPTabu(AZP, abc.ABC):
+    """
+    Superclass for tabu variants of the AZP.
+    """
     def _make_move(self, area, new_region, labels):
         old_region = labels[area]
         make_move(area, new_region, labels)
@@ -616,11 +691,11 @@ class AZPTabu(AZP, abc.ABC):
         old_region = labels[area]
         # before move
         objval_before = objective_func_arr(
-                self.distance_metric, labels, data, [old_region, new_region])
+                labels, data, [old_region, new_region], self.metric)
         # after move
         labels[area] = new_region
         objval_after = objective_func_arr(
-                self.distance_metric, labels, data, [old_region, new_region])
+                labels, data, [old_region, new_region], self.metric)
         labels[area] = old_region
         return objval_after - objval_before
 
@@ -630,15 +705,61 @@ class AZPTabu(AZP, abc.ABC):
 
 
 class AZPBasicTabu(AZPTabu):
-    def __init__(self, tabu_length=None,
-                 repetitions_before_termination=5, random_state=None):
+    """
+    Implementation of the AZP with basic tabu (refer to [OR1995]_).
+
+    Attributes
+    ----------
+    labels_ : :class:`numpy.ndarray`
+        Each element is a region label specifying to which region the
+        corresponding area was assigned to by the last run of a fit-method.
+    """
+    def __init__(self, tabu_length=None, repetitions_before_termination=5,
+                 random_state=None):
+        """
+        Parameters
+        ----------
+        tabu_length : numbers.Integral
+            The size of the tabu list.
+        repetitions_before_termination : numbers.integral
+            This argument specifies a termination condition. If a solution has
+            been visited for `repetitions_before_termination` times, the
+            clustering function will terminate.
+        random_state : None, int, str, bytes, or bytearray
+            Random seed.
+        """
         self.tabu = deque([], tabu_length)
         self.visited = []
         self.reps_before_termination = repetitions_before_termination
         super().__init__(random_state=random_state)
 
-    def _azp_connected_component(self, adj, initial_clustering, data,
+    def _azp_connected_component(self, adj, initial_clustering, attr,
                                  comp_idx):
+        """
+        Implementation of the basic tabu version of the AZP algorithm (refer
+        to [OR1995]_) for a spatially connected set of areas (i.e. for every
+        area there is a path to every other area).
+
+        Parameters
+        ----------
+        adj : :class:`scipy.sparse.csr_matrix`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        initial_clustering : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        attr : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        comp_idx : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+
+        Returns
+        -------
+        labels : :class:`numpy.ndarray`
+            Refer to the return value in :meth:`AZP._azp_connected_component`.
+        """
         self.reset_tabu()
         # if there is only one region in the initial solution, just return it.
         distinct_regions = list(np.unique(initial_clustering[comp_idx]))
@@ -649,9 +770,10 @@ class AZPBasicTabu(AZPTabu):
         print("comp_adj.shape:", adj.shape)
         initial_clustering = initial_clustering[comp_idx]
         print("initial_clustering", initial_clustering)
-        data = data[comp_idx]
-        print("data", data)
-        self.allow_move_strategy.start_new_component(comp_idx)
+        attr = attr[comp_idx]
+        print("attr", attr)
+        self.allow_move_strategy.start_new_component(initial_clustering,
+                                                     comp_idx)
 
         #  step 2: make a list of the M regions
         labels = initial_clustering
@@ -660,14 +782,14 @@ class AZPBasicTabu(AZPTabu):
         # print("Init with: ", initial_clustering)
         visited = []
         stop = False
-        while True:  # TODO: condition??
+        while True:
             # print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
             label_tup = tuple(labels)
             if visited.count(label_tup) >= self.reps_before_termination:
                 stop = True
                 # print("VISITED", label_tup, "FOR",
-                #       self.reps_before_termination,
+                #       self.reps_before_termination_,
                 #       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
             visited.append(label_tup)
             # print("=" * 45)
@@ -695,11 +817,11 @@ class AZPBasicTabu(AZPTabu):
                             if possible_move not in self.tabu:
                                 objval_diff = self._objval_diff(
                                         possible_move.area,
-                                        possible_move.new_region, labels, data)
+                                        possible_move.new_region, labels, attr)
                                 if objval_diff < best_objval_diff:
                                     best_move = possible_move
                                     best_objval_diff = objval_diff
-            # print("  best move:", best_move, "objval_diff:", best_objval_diff)
+            # print("  best move", best_move, "objval_diff", best_objval_diff)
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
             print("step 2")
@@ -717,7 +839,7 @@ class AZPBasicTabu(AZPTabu):
                     move for move in self.tabu
                     if labels[move.area] == move.old_region and
                     self._objval_diff(move.area, move.new_region,
-                                      labels, data) < 0
+                                      labels, attr) < 0
                 ]
                 print(labels)
                 if improving_tabus:
@@ -738,22 +860,76 @@ class AZPBasicTabu(AZPTabu):
                         self._make_move(best_move.area, best_move.new_region,
                                         labels)
         return labels
-    _azp_connected_component.__doc__ = AZP._azp_connected_component.__doc__
 
 
 class AZPReactiveTabu(AZPTabu):
+    """
+    Implementation of the AZP with reactive tabu (refer to [OR1995]_).
+
+    Attributes
+    ----------
+    labels_ : :class:`numpy.ndarray`
+        Each element is a region label specifying to which region the
+        corresponding area was assigned to by the last run of a fit-method.
+    """
     def __init__(self, max_iterations, k1, k2, random_state=None):
+        """
+        Parameters
+        ----------
+        max_iterations : int
+           Termination condition: The algorithm terminates after steps 3-11
+           (see [OR1995]_) are repeated for `max_max_iterations` times.
+        k1 : int
+            Defining a necessary condition for jumping from step 7 to step 11
+            in the algorithm (see [OR1995]_). Such a jump requires (besides the
+            condition involving `k2`) a solution to be visited more than `k1`
+            times.
+        k2 : int
+            Defining a necessary condition for jumping from step 7 to step 11
+            in the algorithm (see [OR1995]_). Such a jump requires (besides the
+            condition involving `k1`) a cycle of solutions to be found at least
+            `k2` times.
+        random_state : None, int, str, bytes, or bytearray
+            Random seed.
+        """
         self.tabu = deque([], maxlen=1)
         super().__init__(random_state=random_state)
         self.avg_it_until_rep = 1
         self.rep_counter = 1
+        if max_iterations <= 0:
+            raise ValueError("The `max_iterations` argument must be > 0.")
         self.maxit = max_iterations
         self.visited = []
         self.k1 = k1
         self.k2 = k2
 
-    def _azp_connected_component(self, adj, initial_labels, data,
+    def _azp_connected_component(self, adj, initial_labels, attr,
                                  comp_idx):
+        """
+        Implementation of the reactive tabu version of the AZP algorithm (refer
+        to [OR1995]_) for a spatially connected set of areas (i.e. for every
+        area there is a path to every other area).
+
+        Parameters
+        ----------
+        adj : :class:`scipy.sparse.csr_matrix`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        initial_clustering : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        attr : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+        comp_idx : :class:`numpy.ndarray`
+            Refer to the corresponding argument in
+            :meth:`AZP._azp_connected_component`.
+
+        Returns
+        -------
+        labels : :class:`numpy.ndarray`
+            Refer to the return value in :meth:`AZP._azp_connected_component`.
+        """
         self.reset_tabu(1)
         # if there is only one region in the initial solution, just return it.
         distinct_regions = list(np.unique(initial_labels[comp_idx]))
@@ -764,9 +940,9 @@ class AZPReactiveTabu(AZPTabu):
         print("comp_adj.shape:", adj.shape)
         initial_labels = initial_labels[comp_idx]
         print("initial_clustering", initial_labels)
-        data = data[comp_idx]
-        print("data", data)
-        self.allow_move_strategy.start_new_component(comp_idx)
+        attr = attr[comp_idx]
+        print("attr", attr)
+        self.allow_move_strategy.start_new_component(initial_labels, comp_idx)
 
         #  step 2: make a list of the M regions
         labels = initial_labels
@@ -780,8 +956,7 @@ class AZPReactiveTabu(AZPTabu):
         for it in range(self.maxit):
             # print("=" * 45)
             # print(region_list)
-            obj_val_end = objective_func_arr(self.distance_metric, labels,
-                                             data)
+            obj_val_end = objective_func_arr(labels, attr, metric=self.metric)
             # print("obj_value:", obj_val_end)
             if not obj_val_end < obj_val_start:
                 break  # step 12
@@ -815,7 +990,7 @@ class AZPReactiveTabu(AZPTabu):
             best_objval_diff = float("inf")
             for i, move in enumerate(possible_moves):
                 obj_val_diff = self._objval_diff(
-                        move.area, move.new_region, labels, data)
+                        move.area, move.new_region, labels, attr)
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
@@ -844,8 +1019,8 @@ class AZPReactiveTabu(AZPTabu):
                 # print("  cycle:", cycle)
                 it_until_repetition = len(cycle)
                 if times_visited > self.k1:
+                    times_cycle_found = 0
                     if self.k2 > 0:
-                        times_cycle_found = 0
                         for i in range(len(self.visited) - len(cycle)):
                             if self.visited[i:i+len(cycle)] == cycle:
                                 times_cycle_found += 1
@@ -901,4 +1076,3 @@ class AZPReactiveTabu(AZPTabu):
                 return np.array(self.visited[-1])
         # if step 11 was the last one, the result is in last_step[1]
         return np.array(last_step[1])
-    _azp_connected_component.__doc__ = AZP._azp_connected_component.__doc__

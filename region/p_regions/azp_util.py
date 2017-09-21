@@ -9,7 +9,7 @@ from region.util import objective_func_arr, objective_func_diff
 
 
 class AllowMoveStrategy(abc.ABC):
-    def __init__(self, attr, metric):
+    def __init__(self, attr=None, metric=None):
         """
         Parameters
         ----------
@@ -18,13 +18,33 @@ class AllowMoveStrategy(abc.ABC):
             determine the objective value of a given clustering.
         metric : function
             See the `metric` argument in
-            :func:`region.util.set_distance_metric`.
+            :func:`region.util.get_metric_function`.
         """
         self.attr_all = attr
         self.attr = None
         self.metric = metric
         self.comp_idx = None
         self.objective = float("inf")
+
+    @property
+    def attr_all(self):
+        if self._attr_all is None:
+            raise NameError("attr_all of {} not set.".format(self))
+        return self._attr_all
+
+    @attr_all.setter
+    def attr_all(self, value):
+        self._attr_all = value
+
+    @property
+    def metric(self):
+        if self._metric is None:
+            raise NameError("metric of {} not set.".format(self))
+        return self._metric
+
+    @metric.setter
+    def metric(self, value):
+        self._metric = value
 
     def start_new_component(self, initial_labels, comp_idx):
         """
@@ -38,8 +58,8 @@ class AllowMoveStrategy(abc.ABC):
         """
         self.comp_idx = comp_idx
         self.attr = self.attr_all[comp_idx]
-        self.objective = objective_func_arr(self.metric, initial_labels,
-                                            self.attr)
+        self.objective = objective_func_arr(initial_labels, self.attr,
+                                            metric=self.metric)
 
     @abc.abstractmethod
     def __call__(self, moving_area, new_region, labels):
@@ -68,67 +88,68 @@ class AllowMoveStrategy(abc.ABC):
 
 
 class AllowMoveAZP(AllowMoveStrategy):
-    def __init__(self, attr, metric):
-        super().__init__(attr=attr, metric=metric)
-
     def __call__(self, moving_area, new_region, labels):
-        donor_diff, recipient_diff = objective_func_diff(
-                self.metric, labels, self.attr, moving_area, new_region)
-        diff = donor_diff + recipient_diff
+        diff = objective_func_diff(labels, self.attr, moving_area, new_region,
+                                   self.metric)
         if diff <= 0:
-            # print("  allowing move because diff {} <= 0".format(diff))
+            # print("  allowing move of {} to {}".format(moving_area, new_region))
+            # print("  because diff {} <= 0".format(diff))
             self.objective += diff
             return True
         else:
-            # print("  disallowing move because diff {} > 0".format(diff))
+            # print("  disallowing move of {} to {}".format(moving_area,
+            #                                               new_region))
+            # print("  because diff {} > 0".format(diff))
             return False
 
 
 class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
-    def __init__(self, attr, metric, init_temperature,
-                 min_sa_moves=float("inf")):
+    def __init__(self, init_temperature, sa_moves_term=float("inf"), attr=None,
+                 metric=None):
         self.observers_min_sa_moves = []
         self.observers_move_made = []
         self.t = init_temperature
-        if not isinstance(min_sa_moves, numbers.Integral) and min_sa_moves < 1:
-            raise ValueError("The min_sa_moves argument must be a positive "
+        if not isinstance(sa_moves_term, numbers.Integral) or \
+                sa_moves_term < 1:
+            raise ValueError("The sa_moves_term argument must be a positive "
                              "integer.")
-        self.minsa = min_sa_moves
+        print("sa_moves_term:", sa_moves_term)
+        self.sa_moves_term = sa_moves_term
         self.sa = 0  # number of SA-moves
         super().__init__(attr=attr, metric=metric)
 
     def __call__(self, moving_area, new_region, labels):
-        dist_met = self.metric
-        old_region = labels[moving_area]
-        # before move
-        obj_val_before = objective_func_arr(dist_met, labels, self.attr,
-                                            {old_region, new_region})
-        # after move
-        labels[moving_area] = new_region
-        obj_val_after = objective_func_arr(dist_met, labels, self.attr,
-                                           {old_region, new_region})
-        labels[moving_area] = old_region
-        if obj_val_after <= obj_val_before:
+        diff = objective_func_diff(labels, self.attr, moving_area, new_region,
+                                   self.metric)
+        if diff <= 0:
+            # print("  allowing move of {} to {}".format(moving_area, new_region))
+            # print("  because diff {} <= 0".format(diff))
+            self.objective += diff
             self.notify_move_made()
             return True
         else:
-            obj_val_diff = obj_val_before - obj_val_after
-            prob = math.exp(obj_val_diff / self.t)
+            # print("  disallowing move of {} to {}".format(moving_area,
+            #                                               new_region))
+            # print("  because diff {} > 0".format(diff))
+            prob = math.exp(-diff / self.t)
             move_allowed = random.random() < prob
             if move_allowed:
                 self.notify_move_made()
                 self.sa += 1
-                if self.sa == self.minsa:
+                if self.sa >= self.sa_moves_term:
                     self.notify_min_sa_moves()
+                print("move {} to {} anyway!".format(moving_area, new_region))
+                self.objective += diff
                 return True
+            print("not moving {} to {}".format(moving_area, new_region))
             return False
 
-    def register_min_sa_moves(self, observer_func):
+    def register_sa_moves_term(self, observer_func):
         """
         Parameters
         ----------
         observer_func : callable
-            A function to call when the minimum number of SA moves has been
+            A function to call when the certain number of SA-moves has been
             reached. This number is called Q in [OR1995]_ (page 431).
         """
         if callable(observer_func):
@@ -137,6 +158,12 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
             raise ValueError("The observer_func must be callable.")
 
     def register_move_made(self, observer_func):
+        """
+        Parameters
+        ----------
+        observer_func : callable
+            A function to call when a move is allowed.
+        """
         if callable(observer_func):
             self.observers_move_made.append(observer_func)
         else:
@@ -165,66 +192,94 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     the recipient region is necessary in case there is an area with a negative
     spatially extensive attribute.
     """
-    def __init__(self, metric, attr, spatially_extensive_attr, threshold,
+    def __init__(self, attr, spatially_extensive_attr, threshold, metric,
                  decorated_strategy):
         """
 
         Parameters
         ----------
-        metric : function
-            See corresponding argument in
-            :meth:`region.p_regions.azp_util.AllowMoveStrategy.__init__`.
         attr : :class:`numpy.ndarray`
             Each element specifies an area's attribute which is used to
             determine the objective value of a given clustering.
         spatially_extensive_attr : :class:`numpy.ndarray`, default: None
             See corresponding argument in
-            :meth:`region.max_p_regions.heuristics.MaxPHeu.fit_from_scipy_sparse_matrix`.
-        threshold : `float`
+            :meth:`region.max_p_regions.heuristics.MaxPRegionsHeu.fit_from_scipy_sparse_matrix`.
+        threshold : numbers.Real or :class:`numpy.ndarray`
             See corresponding argument in
-            :meth:`region.max_p_regions.heuristics.MaxPHeu.fit_from_scipy_sparse_matrix`
+            :meth:`region.max_p_regions.heuristics.MaxPRegionsHeu.fit_from_scipy_sparse_matrix`
+        metric : function
+            See corresponding argument in
+            :meth:`region.p_regions.azp_util.AllowMoveStrategy.__init__`.
         decorated_strategy : :class:`AllowMoveStrategy`
             The :class:`AllowMoveStrategy` related to the algorithms local
             search.
         """
+        self._decorated_strategy = decorated_strategy
         self.spatially_extensive_attr_all = spatially_extensive_attr
         self.spatially_extensive_attr = None
         self.threshold = threshold
-        self._decorated_strategy = decorated_strategy
         super().__init__(attr=attr, metric=metric)
 
-    def start_new_component(self, comp_idx):
+    @property
+    def attr_all(self):
+        if self._attr_all is None:
+            raise NameError("attr_all of {} not set.".format(self))
+        return self._attr_all
+
+    @attr_all.setter
+    def attr_all(self, value):
+        self._attr_all = value
+        self._decorated_strategy.attr_all = value
+
+    @property
+    def metric(self):
+        if self._metric is None:
+            raise NameError("metric of {} not set.".format(self))
+        return self._metric
+
+    @metric.setter
+    def metric(self, value):
+        self._metric = value
+        self._decorated_strategy.metric = value
+
+    def start_new_component(self, initial_labels, comp_idx):
         """
         Parameters
         ----------
+        initial_labels : :class:`numpy.ndarray`
+
         comp_idx
             Set the instances `comp_idx` attribute. This method should be
             called whenever a new connected component is clustered.
         """
         self.spatially_extensive_attr = self.spatially_extensive_attr_all[
                 comp_idx]
-        super().start_new_component(comp_idx)
+        super().start_new_component(initial_labels, comp_idx)
+        self._decorated_strategy.start_new_component(initial_labels, comp_idx)
 
-    def __call__(self, moving_area, new_region, labels, comp_idx):
-        spat_ext = self.spatially_extensive_attr
+    def __call__(self, moving_area, new_region, labels):
+        sp_ext = self.spatially_extensive_attr
 
-        if spat_ext[moving_area] > 0:
+        if (sp_ext[moving_area]).any() > 0:
             donor_region = labels[moving_area]
             donor_idx = np.where(labels == donor_region)[0]
-            donor_sum = spat_ext[donor_idx] - spat_ext[moving_area]
-            threshold_reached_donor = donor_sum >= self.threshold
+            donor_sum = sum(sp_ext[donor_idx]) - sp_ext[moving_area]
+            threshold_reached_donor = (donor_sum >= self.threshold).all()
             if not threshold_reached_donor:
+                print("Region", donor_idx, "must not lose", moving_area)
                 return False
+            print("Region", donor_idx, "may donate", moving_area)
 
-        elif spat_ext[moving_area] < 0:
+        elif (sp_ext[moving_area]).any() < 0:
             recipient_idx = np.where(labels == new_region)[0]
-            recipient_sum = spat_ext[recipient_idx] + spat_ext[moving_area]
-            threshold_reached_recipient = recipient_sum >= self.threshold
+            recipient_sum = sum(sp_ext[recipient_idx]) + sp_ext[moving_area]
+            threshold_reached_recipient = (recipient_sum >=
+                                           self.threshold).all()
             if not threshold_reached_recipient:
+                print("Area", moving_area, "with spat_ext_attr<0 may not move")
                 return False
 
-        return self._decorated_strategy(moving_area, new_region, labels,
-                                        comp_idx)
+        return self._decorated_strategy(moving_area, new_region, labels)
 
     def __getattr__(self, name):
         """
