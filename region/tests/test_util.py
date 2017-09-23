@@ -1,6 +1,5 @@
 from scipy.sparse import csr_matrix
 import numpy as np
-import networkx as nx
 import pytest
 
 from region.p_regions.azp import AZP
@@ -93,7 +92,6 @@ def test_AZP_azp_connected_component__one_area():
     azp = AZP()
     obtained = azp._azp_connected_component(adj,
                                             initial_clustering=np.array([0]),
-                                            attr=np.array([123]),
-                                            comp_idx=np.array([0]))
+                                            attr=np.array([123]))
     desired = np.array([0])
     assert obtained == desired

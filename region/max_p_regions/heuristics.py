@@ -3,13 +3,14 @@ import random
 import networkx as nx
 import libpysal.api as ps_api
 
+from region.objective_function import ObjectiveFunctionPairwise
 from region.p_regions.azp import AZP
 from region.p_regions.azp_util import AllowMoveAZPMaxPRegions
 from region.util import array_from_df_col, array_from_dict_values, \
     array_from_graph_or_dict, array_from_region_list, copy_func, \
-    find_sublist_containing, get_metric_function, objective_func_arr,\
-    pop_randomly_from, raise_distance_metric_not_set, random_element_from,\
-    scipy_sparse_matrix_from_w, scipy_sparse_matrix_from_dict, w_from_gdf
+    find_sublist_containing, pop_randomly_from, raise_distance_metric_not_set,\
+    random_element_from,scipy_sparse_matrix_from_w, \
+    scipy_sparse_matrix_from_dict, w_from_gdf
 
 
 class MaxPRegionsHeu:
@@ -35,8 +36,9 @@ class MaxPRegionsHeu:
         random.seed(random_state)
         self.metric = raise_distance_metric_not_set
 
-    def fit_from_scipy_sparse_matrix(self, adj, attr, spatially_extensive_attr,
-                                     threshold, max_it=10, metric="euclidean"):
+    def fit_from_scipy_sparse_matrix(
+            self, adj, attr, spatially_extensive_attr, threshold, max_it=10,
+            objective_func=ObjectiveFunctionPairwise()):
         """
         Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
 
@@ -62,14 +64,13 @@ class MaxPRegionsHeu:
         max_it : int, default: 10
             The maximum number of partitions produced in the algorithm's
             construction phase.
-        metric : str or function, default: "euclidean"
-            See the `metric` argument in
-            :func:`region.util.get_metric_function`.
+        objective_func : :class:`region.objective_function.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
+            The objective function to use.
         """
         print("f_f_SCIPY got:\n", attr, "\n", spatially_extensive_attr, "\n", threshold, sep="")
-        self.metric = get_metric_function(metric)
         weights = ps_api.WSP(adj).to_W()
         areas_dict = weights.neighbors
+        self.metric = objective_func.metric
 
         best_partition = None
         best_obj_value = float("inf")
@@ -104,16 +105,16 @@ class MaxPRegionsHeu:
         if self.local_search is None:
             self.local_search = AZP()
         self.local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
-                attr, spatially_extensive_attr, threshold, self.metric,
+                spatially_extensive_attr, threshold,
                 self.local_search.allow_move_strategy)
         for partition in feasible_partitions:
             self.local_search.fit_from_scipy_sparse_matrix(
                     adj, attr, max_p,
                     initial_labels=array_from_region_list(partition),
-                    metric=self.metric)
+                    objective_func=objective_func)
             partition = self.local_search.labels_
             # print("optimized partition", partition)
-            obj_value = objective_func_arr(partition, attr, metric=self.metric)
+            obj_value = objective_func(partition, attr)
             if obj_value < best_obj_value:
                 best_obj_value = obj_value
                 best_partition = partition
@@ -124,7 +125,8 @@ class MaxPRegionsHeu:
                   + fit_from_scipy_sparse_matrix.__doc__
 
     def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
-                      threshold, max_it=10, metric="euclidean"):
+                      threshold, max_it=10,
+                      objective_func=ObjectiveFunctionPairwise()):
         """
         Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
 
@@ -154,7 +156,7 @@ class MaxPRegionsHeu:
         max_it : int, default: 10
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
-        metric : str or function, default: "euclidean"
+        objective_func : :class:`region.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
         """
@@ -176,10 +178,11 @@ class MaxPRegionsHeu:
         spat_ext_attr_arr = array_from_dict_values(spatially_extensive_attr)
         self.fit_from_scipy_sparse_matrix(adj, attr_arr, spat_ext_attr_arr,
                                           threshold=threshold, max_it=max_it,
-                                          metric=metric)
+                                          objective_func=objective_func)
 
     def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
-                              threshold, max_it=10, metric="euclidean",
+                              threshold, max_it=10,
+                              objective_func=ObjectiveFunctionPairwise(),
                               contiguity="rook"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
@@ -201,7 +204,7 @@ class MaxPRegionsHeu:
         max_it : int, default: 10
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
-        metric : str or function, default: "euclidean"
+        objective_func : :class:`region.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
         contiguity : {"rook", "queen"}, default: "rook"
@@ -216,10 +219,11 @@ class MaxPRegionsHeu:
         spat_ext_attr = array_from_df_col(gdf, spatially_extensive_attr)
 
         self.fit_from_w(w, attr, spat_ext_attr, threshold=threshold,
-                        max_it=max_it, metric=metric)
+                        max_it=max_it, objective_func=objective_func)
 
     def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
-                          threshold, max_it=10, metric="euclidean"):
+                          threshold, max_it=10,
+                          objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -259,7 +263,7 @@ class MaxPRegionsHeu:
         max_it : int, default: 10
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
-        metric : str or function, default: "euclidean"
+        objective_func : :class:`region.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
         """
@@ -268,10 +272,10 @@ class MaxPRegionsHeu:
         sp_ext_attr = array_from_graph_or_dict(graph, spatially_extensive_attr)
         self.fit_from_scipy_sparse_matrix(adj, attr, sp_ext_attr,
                                           threshold=threshold, max_it=max_it,
-                                          metric=metric)
+                                          objective_func=objective_func)
 
     def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
-                   max_it=10, metric="euclidean"):
+                   max_it=10, objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
 
@@ -293,14 +297,14 @@ class MaxPRegionsHeu:
         max_it : int, default: 10
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
-        metric : str or function, default: "euclidean"
+        objective_func : :class:`region.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             Refer to the corresponding argument in
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
         self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
                                           threshold, max_it=max_it,
-                                          metric=metric)
+                                          objective_func=objective_func)
 
     def grow_regions(self, adj, attr, spatially_extensive_attr, threshold):
         """
@@ -387,7 +391,6 @@ class MaxPRegionsHeu:
 
     def find_best_area(self, region, candidates, attr):
         """
-
         Parameters
         ----------
         region : iterable

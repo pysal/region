@@ -5,61 +5,32 @@ import random
 
 import numpy as np
 
-from region.util import objective_func_arr, objective_func_diff
-
 
 class AllowMoveStrategy(abc.ABC):
-    def __init__(self, attr=None, metric=None):
+    def start_new_component(self, initial_labels, attr, objective_func,
+                            comp_idx):
         """
-        Parameters
-        ----------
-        attr : :class:`numpy.ndarray`
-            Each element specifies an area's attribute which is used to
-            determine the objective value of a given clustering.
-        metric : function
-            See the `metric` argument in
-            :func:`region.util.get_metric_function`.
-        """
-        self.attr_all = attr
-        self.attr = None
-        self.metric = metric
-        self.comp_idx = None
-        self.objective = float("inf")
+        This method should be called whenever a new connected component is
+        clustered.
 
-    @property
-    def attr_all(self):
-        if self._attr_all is None:
-            raise NameError("attr_all of {} not set.".format(self))
-        return self._attr_all
-
-    @attr_all.setter
-    def attr_all(self, value):
-        self._attr_all = value
-
-    @property
-    def metric(self):
-        if self._metric is None:
-            raise NameError("metric of {} not set.".format(self))
-        return self._metric
-
-    @metric.setter
-    def metric(self, value):
-        self._metric = value
-
-    def start_new_component(self, initial_labels, comp_idx):
-        """
         Parameters
         ----------
         initial_labels : :class:`numpy.ndarray`
-
+            The region labels of the areas in the currently considered
+            connected component.
+            Shape: number of areas in the currently considered component.
+        attr : :class:`numpy.ndarray`
+            The areas' attributes.
+            Shape: number of areas in the currently considered component.
+        objective_func : :class:`region.objective_function.ObjectiveFunction`
+            The objective function to use.
         comp_idx : :class:`numpy.ndarray`
-            Set the instance's `comp_idx` attribute. This method should be
-            called whenever a new connected component is clustered.
+            The indices of those areas belonging to the component clustered
+            next.
         """
-        self.comp_idx = comp_idx
-        self.attr = self.attr_all[comp_idx]
-        self.objective = objective_func_arr(initial_labels, self.attr,
-                                            metric=self.metric)
+        self.attr = attr
+        self.objective_func = objective_func
+        self.objective_val = self.objective_func(initial_labels, self.attr)
 
     @abc.abstractmethod
     def __call__(self, moving_area, new_region, labels):
@@ -89,12 +60,12 @@ class AllowMoveStrategy(abc.ABC):
 
 class AllowMoveAZP(AllowMoveStrategy):
     def __call__(self, moving_area, new_region, labels):
-        diff = objective_func_diff(labels, self.attr, moving_area, new_region,
-                                   self.metric)
+        diff = self.objective_func.update(moving_area, new_region, labels,
+                                          self.attr)
         if diff <= 0:
             # print("  allowing move of {} to {}".format(moving_area, new_region))
             # print("  because diff {} <= 0".format(diff))
-            self.objective += diff
+            self.objective_val += diff
             return True
         else:
             # print("  disallowing move of {} to {}".format(moving_area,
@@ -104,8 +75,7 @@ class AllowMoveAZP(AllowMoveStrategy):
 
 
 class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
-    def __init__(self, init_temperature, sa_moves_term=float("inf"), attr=None,
-                 metric=None):
+    def __init__(self, init_temperature, sa_moves_term=float("inf")):
         self.observers_min_sa_moves = []
         self.observers_move_made = []
         self.t = init_temperature
@@ -116,15 +86,15 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
         print("sa_moves_term:", sa_moves_term)
         self.sa_moves_term = sa_moves_term
         self.sa = 0  # number of SA-moves
-        super().__init__(attr=attr, metric=metric)
+        super().__init__()
 
     def __call__(self, moving_area, new_region, labels):
-        diff = objective_func_diff(labels, self.attr, moving_area, new_region,
-                                   self.metric)
+        diff = self.objective_func.update(moving_area, new_region, labels,
+                                          self.attr)
         if diff <= 0:
             # print("  allowing move of {} to {}".format(moving_area, new_region))
             # print("  because diff {} <= 0".format(diff))
-            self.objective += diff
+            self.objective_val += diff
             self.notify_move_made()
             return True
         else:
@@ -139,7 +109,7 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
                 if self.sa >= self.sa_moves_term:
                     self.notify_min_sa_moves()
                 print("move {} to {} anyway!".format(moving_area, new_region))
-                self.objective += diff
+                self.objective_val += diff
                 return True
             print("not moving {} to {}".format(moving_area, new_region))
             return False
@@ -192,24 +162,18 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     the recipient region is necessary in case there is an area with a negative
     spatially extensive attribute.
     """
-    def __init__(self, attr, spatially_extensive_attr, threshold, metric,
+    def __init__(self, spatially_extensive_attr, threshold,
                  decorated_strategy):
         """
 
         Parameters
         ----------
-        attr : :class:`numpy.ndarray`
-            Each element specifies an area's attribute which is used to
-            determine the objective value of a given clustering.
         spatially_extensive_attr : :class:`numpy.ndarray`, default: None
             See corresponding argument in
             :meth:`region.max_p_regions.heuristics.MaxPRegionsHeu.fit_from_scipy_sparse_matrix`.
         threshold : numbers.Real or :class:`numpy.ndarray`
             See corresponding argument in
             :meth:`region.max_p_regions.heuristics.MaxPRegionsHeu.fit_from_scipy_sparse_matrix`
-        metric : function
-            See corresponding argument in
-            :meth:`region.p_regions.azp_util.AllowMoveStrategy.__init__`.
         decorated_strategy : :class:`AllowMoveStrategy`
             The :class:`AllowMoveStrategy` related to the algorithms local
             search.
@@ -218,44 +182,15 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
         self.spatially_extensive_attr_all = spatially_extensive_attr
         self.spatially_extensive_attr = None
         self.threshold = threshold
-        super().__init__(attr=attr, metric=metric)
 
-    @property
-    def attr_all(self):
-        if self._attr_all is None:
-            raise NameError("attr_all of {} not set.".format(self))
-        return self._attr_all
-
-    @attr_all.setter
-    def attr_all(self, value):
-        self._attr_all = value
-        self._decorated_strategy.attr_all = value
-
-    @property
-    def metric(self):
-        if self._metric is None:
-            raise NameError("metric of {} not set.".format(self))
-        return self._metric
-
-    @metric.setter
-    def metric(self, value):
-        self._metric = value
-        self._decorated_strategy.metric = value
-
-    def start_new_component(self, initial_labels, comp_idx):
-        """
-        Parameters
-        ----------
-        initial_labels : :class:`numpy.ndarray`
-
-        comp_idx
-            Set the instances `comp_idx` attribute. This method should be
-            called whenever a new connected component is clustered.
-        """
+    def start_new_component(self, initial_labels, attr, objective_func,
+                            comp_idx):
         self.spatially_extensive_attr = self.spatially_extensive_attr_all[
                 comp_idx]
-        super().start_new_component(initial_labels, comp_idx)
-        self._decorated_strategy.start_new_component(initial_labels, comp_idx)
+        super().start_new_component(initial_labels, attr, objective_func,
+                                    comp_idx)
+        self._decorated_strategy.start_new_component(initial_labels, attr,
+                                                     objective_func, comp_idx)
 
     def __call__(self, moving_area, new_region, labels):
         sp_ext = self.spatially_extensive_attr

@@ -112,7 +112,8 @@ def scipy_sparse_matrix_from_dict(neighbors):
     True
     """
     n_areas = len(neighbors)
-    name_to_int = {area_name: i for i, area_name in enumerate(neighbors)}
+    name_to_int = {area_name: i
+                   for i, area_name in enumerate(sorted(neighbors))}
     adj = dok_matrix((n_areas, n_areas))
     for i in neighbors:
         for j in neighbors[i]:
@@ -437,12 +438,13 @@ def find_sublist_containing(el, lst, index=False):
             "{} not found in any of the sublists of {}".format(el, lst))
 
 
-def get_metric_function(metric="euclidean"):
+def get_metric_function(metric=None):
     """
-
     Parameters
     ----------
-    metric : str or function, default: "euclidean"
+    metric : str or function or None, default: None
+        Using None is equivalent to using "euclidean".
+
         If str, then this string specifies the distance metric (from
         scikit-learn) to use for calculating the objective function.
         Possible values are:
@@ -454,9 +456,8 @@ def get_metric_function(metric="euclidean"):
         * "l2" for sklearn.metrics.pairwise.euclidean_distances
         * "manhattan" for sklearn.metrics.pairwise.manhattan_distances
 
-        If function, then this function should take two arguments and
-        return a scalar value. Furthermore, the following conditions
-        have to be fulfilled:
+        If function, then this function should take two arguments and return a
+        scalar value. Furthermore, the following conditions must be fulfilled:
 
         1. d(a, b) >= 0, for all a and b
         2. d(a, b) == 0, if and only if a = b, positive definiteness
@@ -465,10 +466,14 @@ def get_metric_function(metric="euclidean"):
 
     Returns
     -------
-    If the `metric` argument is a function, it is returned.
-    If the `metric` argument is a string, then the corresponding distance
-    metric function from `sklearn.metrics.pairwise`.
+    metric_func : function
+        If the `metric` argument is a function, it is returned.
+        If the `metric` argument is a string, then the corresponding distance
+        metric function from `sklearn.metrics.pairwise` is returned.
     """
+    if metric is None:
+        metric = "manhattan"
+
     if isinstance(metric, str):
         try:
             return distance_metrics()[metric]
@@ -519,82 +524,6 @@ def make_move(moving_area, new_label, labels):
     True
     """
     labels[moving_area] = new_label
-
-
-def objective_func_arr(labels_arr, attr, region_restriction=None,
-                       metric=get_metric_function("manhattan")):
-    """
-    Parameters
-    ----------
-    labels_arr : :class:`numpy.ndarray`
-        The areas' region labels.
-    attr : :class:`numpy.ndarray`
-        The areas' clustering-relevant attributes.
-    region_restriction : iterable
-        Each element is a (distinct) region label. The calculation will be
-        restricted to region labels present in this iterable.
-    metric : function
-        A function taking two arguments and returning a scalar >= 0.
-        Furthermore, the function must fulfill the properties described in the
-        docstring of :meth:`get_metric_function`.
-
-    Returns
-    -------
-    obj_val : float
-        The objective value attained with the clustering defined by
-        `labels_arr`.
-
-    Examples
-    --------
-    >>> from sklearn.metrics.pairwise import distance_metrics
-    >>> metric = distance_metrics()["manhattan"]
-    >>> labels = np.array([0, 0, 0, 0, 1, 1])
-    >>> attr = np.arange(len(labels)).reshape(-1, 1)
-    >>> int(objective_func_arr(labels, attr, metric=metric))
-    11
-    >>> labels = np.array([0, 0, 0, 0, 1, 1, 2, 2])
-    >>> attr = np.arange(len(labels)).reshape(-1, 1)
-    >>> int(objective_func_arr(labels, attr, {0,1}, metric))
-    11
-    """
-    if region_restriction is not None:
-        regions_set = set(region_restriction)
-    else:
-        regions_set = set(labels_arr)
-    obj_val = sum(metric(attr[i].reshape(1, -1),
-                         attr[j].reshape(1, -1))
-                  for r in regions_set
-                  for i, j in
-                  itertools.combinations(np.where(labels_arr == r)[0], 2))
-    return obj_val
-
-
-def objective_func_diff(labels, attr, area, new_region, metric):
-    """
-    Parameters
-    ----------
-    labels : :class:`numpy.ndarray`
-    attr : :class:`numpy.ndarray`
-    area : int
-    new_region : int
-    metric : function
-
-    Returns
-    -------
-    diff : float
-        The change in the objective function caused by moving `area` to
-        `new_region`.
-    """
-    donor_region = labels[area]
-
-    attr_donor = attr[labels == donor_region]
-    donor_diff = sum(metric(attr_donor,
-                            attr[area].reshape(1, -1)))
-
-    attr_recipient = attr[labels == new_region]
-    recipient_diff = sum(metric(attr_recipient,
-                                attr[area].reshape(1, -1)))
-    return recipient_diff - donor_diff
 
 
 def distribute_regions_among_components(component_labels, n_regions):
