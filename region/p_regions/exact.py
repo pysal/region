@@ -104,13 +104,13 @@ class PRegionsExact:
         self.solver = solver
 
     fit = copy_func(fit_from_scipy_sparse_matrix)
-    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix:.\n\n" \
+    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
     def fit_from_dict(self, neighbors_dict, attr, n_regions, method="flow",
                       solver="cbc", metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
@@ -152,7 +152,7 @@ class PRegionsExact:
                               solver="cbc", metric="euclidean",
                               contiguity="rook"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
@@ -190,7 +190,7 @@ class PRegionsExact:
     def fit_from_networkx(self, graph, attr, n_regions, method="flow",
                           solver="cbc", metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
@@ -230,7 +230,7 @@ class PRegionsExact:
     def fit_from_w(self, w, attr, n_regions, method="flow", solver="cbc",
                    metric="euclidean"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------

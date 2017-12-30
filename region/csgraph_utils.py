@@ -89,6 +89,8 @@ def sub_adj_matrix(adj, nodes, wo_nodes=None):
         Adjacency matrix of the subgraph consisting of only the nodes in the
         `nodes` argument.
 
+    Examples
+    --------
     >>> import numpy as np
     >>> from scipy.sparse import csr_matrix
     >>> adjacency_matrix = csr_matrix(np.array([[0, 1, 1],

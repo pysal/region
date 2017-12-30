@@ -121,7 +121,7 @@ class MaxPRegionsHeu:
         self.labels_ = best_partition
 
     fit = copy_func(fit_from_scipy_sparse_matrix)
-    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix:.\n\n" \
+    fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
     def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
@@ -185,7 +185,7 @@ class MaxPRegionsHeu:
                               objective_func=ObjectiveFunctionPairwise(),
                               contiguity="rook"):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
@@ -225,7 +225,7 @@ class MaxPRegionsHeu:
                           threshold, max_it=10,
                           objective_func=ObjectiveFunctionPairwise()):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
@@ -277,7 +277,7 @@ class MaxPRegionsHeu:
     def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
                    max_it=10, objective_func=ObjectiveFunctionPairwise()):
         """
-        Alternative API for :meth:`fit_from_scipy_sparse_matrix:.
+        Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
         Parameters
         ----------
