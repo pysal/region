@@ -20,7 +20,7 @@ class PRegionsExact:
 
     Attributes
     ----------
-    labels : :class:`numpy.ndarray`
+    labels_ : :class:`numpy.ndarray`
         Each element is a region label specifying to which region the
         corresponding area was assigned to by the last run of a fit-method.
     method : str
