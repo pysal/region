@@ -11,6 +11,8 @@ Welcome to region's documentation!
    :caption: Contents:
    
    readme
+   installation/index
+   users/index
    modules
 
 
