@@ -1,6 +1,6 @@
 """
 The data in this file describes the p-regions problem depicted in figure 1
-on p. 106 in [DMC2011]_.
+on p. 106 in [DCM2011]_.
 """
 from geopandas import GeoDataFrame
 import numpy as np

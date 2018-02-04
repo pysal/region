@@ -13,6 +13,7 @@ import libpysal.api as ps_api
 import pulp
 
 Move = collections.namedtuple("move", "area old_region new_region")
+"A named tuple representing a move from `old_region` to `new_region`."  # sphinx
 
 
 def array_from_dict_values(dct, sorted_keys=None, flat_output=False,
@@ -533,12 +534,15 @@ def distribute_regions_among_components(component_labels, n_regions):
     component_labels : list
         Each element specifies to which connected component an area belongs.
         An example would be [0, 0, 1, 0, 0, 1] for the following two islands:
-        island one      island two
-        .-------.         .---.
-        | 0 | 1 |         | 2 |
-        |-------|         |---|
-        | 3 | 4 |         | 5 |
-        `-------'         `---'
+        
+        ::
+        
+          island one        island two
+          .-------.         .---.
+          | 0 | 1 |         | 2 |
+          | - - - |         | - |
+          | 3 | 4 |         | 5 |
+          `-------´         `---´
 
     n_regions : int
 
