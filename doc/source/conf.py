@@ -63,7 +63,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'region'
-copyright = '2017, PySAL Developers'
+copyright = '2017-2018, PySAL-Region Developers'
 author = 'PySAL Developers'
 
 # The version info for the project you're documenting, acts as replacement for
