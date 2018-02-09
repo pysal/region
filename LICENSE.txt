@@ -1,4 +1,4 @@
-Copyright 2017 PySAL-Region Developers 
+Copyright 2017-2018 PySAL-Region Developers 
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
