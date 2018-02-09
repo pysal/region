@@ -13,6 +13,7 @@ Welcome to region's documentation!
    readme
    installation/index
    users/index
+   license
    modules
 
 
