@@ -1,1 +1,2 @@
-from .skater import Spanning_Forest
+from . import skater
+from . import test_skater
