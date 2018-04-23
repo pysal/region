@@ -1,2 +1,2 @@
 from .azp import AZP, AZPSimulatedAnnealing, AZPTabu, AZPBasicTabu, AZPReactiveTabu
-from ..skater import Spanning_Forest
+from ..skater.skater import Spanning_Forest
