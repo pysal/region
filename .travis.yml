@@ -8,6 +8,10 @@ python:
 before_install:
   - sudo apt-get install coinor-cbc 
 
-install: "pip install -r requirements.txt"
+install:
+  - pip install -r requirements.txt
+  - conda install --yes nose
 
-script: pytest
+script:
+  - nosetests --verbose region;
+# pytest
