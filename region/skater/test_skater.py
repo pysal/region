@@ -2,6 +2,7 @@ import pysal as ps
 import numpy as np
 from sklearn.metrics import pairwise as skm
 from region.skater.skater import Spanning_Forest
+
 import types
 
 import os
@@ -40,3 +41,4 @@ def test_run():
     result2 = Spanning_Forest().fit(np.inf, W, data_c, quorum=20)
 
     #np.testing.assert_array_equal(self.south_inf_q20, result2.current_labels_)
+
