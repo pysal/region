@@ -5,7 +5,7 @@ from region.p_regions.exact import PRegionsExact
 from region.tests.util import region_list_from_array, compare_region_lists
 from region.util import dataframe_to_dict
 
-from .data import adj, neighbors_dict, gdf, graph, w, \
+from region.p_regions.tests.data import adj, neighbors_dict, gdf, graph, w, \
                   attr, attr_dict, attr_str, double_attr_str, \
                   double_attr, double_attr_dict, \
                   optimal_clustering
