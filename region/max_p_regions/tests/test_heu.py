@@ -13,8 +13,8 @@ from region.max_p_regions.tests.data import double_attr, double_spatially_extens
                   double_threshold, \
                   double_attr_dict, double_spatially_extensive_attr_dict
 
-# import warnings
-# warnings.filterwarnings("error")
+import warnings
+warnings.filterwarnings("error")
 
 
 attr = attr.reshape(-1)
@@ -150,3 +150,5 @@ def test_w_multi_attr():
                               threshold=double_threshold)
     result = region_list_from_array(cluster_object.labels_)
     compare_region_lists(result, optimal_clustering)
+
+warnings.filterwarnings("default")
