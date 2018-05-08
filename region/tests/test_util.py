@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from region.p_regions.azp import AZP
-from region.tests import util
+from region import util
 
 
 def all_elements_equal(iterable):
