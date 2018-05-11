@@ -3,13 +3,13 @@ import networkx as nx
 from region.max_p_regions.heuristics import MaxPRegionsHeu
 from region.tests.util import compare_region_lists, region_list_from_array
 
-from .data import adj, neighbors_dict, gdf, graph, w, optimal_clustering
+from region.max_p_regions.tests.data import adj, neighbors_dict, gdf, graph, w, optimal_clustering
 # for tests with scalar attr and spatially_extensive_attr
-from .data import attr_str, spatially_extensive_attr_str, \
+from region.max_p_regions.tests.data import attr_str, spatially_extensive_attr_str, \
                   attr, spatially_extensive_attr, threshold, \
                   attr_dict, spatially_extensive_attr_dict
 # for tests with non-scalar attr and spatially_extensive_attr
-from .data import double_attr, double_spatially_extensive_attr, \
+from region.max_p_regions.tests.data import double_attr, double_spatially_extensive_attr, \
                   double_threshold, \
                   double_attr_dict, double_spatially_extensive_attr_dict
 
@@ -150,3 +150,5 @@ def test_w_multi_attr():
                               threshold=double_threshold)
     result = region_list_from_array(cluster_object.labels_)
     compare_region_lists(result, optimal_clustering)
+
+warnings.filterwarnings("default")
