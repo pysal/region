@@ -1,5 +1,6 @@
 #import pysal as ps
-from libpysal import io
+from libpysal.io import geotable
+from libpysal import weights
 import numpy as np
 from sklearn.metrics import pairwise as skm
 from region.skater.skater import Spanning_Forest
@@ -11,11 +12,11 @@ TESTDIR = os.path.dirname(os.path.abspath(__file__))
 
 
 #df = ps.pdio.read_files(ps.examples.get_path('south.shp'))
-df = io.geotable.read_files(ps.examples.get_path('south.shp'))
+df = geotable.read_files(ps.examples.get_path('south.shp'))
 data = df[df.filter(like='90').columns.tolist()
                + df.filter(like='89').columns.tolist()].values
 data_c = (data - data.mean(axis=0)) / data.std(axis=0)
-W = ps.weights.Queen.from_dataframe(df)
+W = weights.Queen.from_dataframe(df)
 south_inf_q20 = np.load(os.path.join(TESTDIR, 'south_inf_q20.ary'))
     
 def test_init():
