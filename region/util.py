@@ -137,9 +137,9 @@ def scipy_sparse_matrix_from_w(w):
 
     Examples
     --------
-    >>> import libpysal as ps
+    >>> from libpysal import weights
     >>> neighbor_dict = {0: {1}, 1: {0, 2}, 2: {1}}
-    >>> w = ps.weights.W(neighbor_dict)
+    >>> w = weights.W(neighbor_dict)
     >>> obtained = scipy_sparse_matrix_from_w(w)
     >>> desired = np.array([[0, 1, 0],
     ...                     [1, 0, 1],
