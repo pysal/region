@@ -144,7 +144,7 @@ def scipy_sparse_matrix_from_w(w):
     >>> desired = np.array([[0, 1, 0],
     ...                     [1, 0, 1],
     ...                     [0, 1, 0]])
-    >>> (obtained.todense() == desired).all()
+    >>> (obtained.full()[0] == desired).all()
     True
     """
     return w.sparse
