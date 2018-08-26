@@ -9,7 +9,7 @@ from sklearn.metrics.pairwise import distance_metrics
 from scipy.sparse.dok import dok_matrix
 import numpy as np
 import networkx as nx
-import libpysal.api as ps_api
+from libpysal import weights
 import pulp
 
 Move = collections.namedtuple("move", "area old_region new_region")
@@ -354,9 +354,9 @@ def w_from_gdf(gdf, contiguity):
                          "or one of the following strings: "
                          '"rook" or"queen".')
     if contiguity.lower() == "rook":
-        weights = ps_api.Rook.from_dataframe(gdf)
+        weights = weights.Rook.from_dataframe(gdf)
     else:  # contiguity.lower() == "queen"
-        weights = ps_api.Queen.from_dataframe(gdf)
+        weights = weights.Queen.from_dataframe(gdf)
     return weights
 
 
