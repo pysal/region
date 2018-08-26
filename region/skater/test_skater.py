@@ -1,4 +1,5 @@
-import pysal as ps
+#import pysal as ps
+from libpysal import io, 
 import numpy as np
 from sklearn.metrics import pairwise as skm
 from region.skater.skater import Spanning_Forest
@@ -9,7 +10,8 @@ import os
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
 
 
-df = ps.pdio.read_files(ps.examples.get_path('south.shp'))
+#df = ps.pdio.read_files(ps.examples.get_path('south.shp'))
+df = io.geotable.read_files(ps.examples.get_path('south.shp'))
 data = df[df.filter(like='90').columns.tolist()
                + df.filter(like='89').columns.tolist()].values
 data_c = (data - data.mean(axis=0)) / data.std(axis=0)
