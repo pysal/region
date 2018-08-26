@@ -344,7 +344,7 @@ def w_from_gdf(gdf, contiguity):
 
     Returns
     -------
-    weights : `W`
+    cweights : `W`
         The contiguity information contained in the `gdf` argument in the form
         of a W object.
     """
@@ -354,9 +354,9 @@ def w_from_gdf(gdf, contiguity):
                          "or one of the following strings: "
                          '"rook" or"queen".')
     if contiguity.lower() == "rook":
-        weights = weights.Rook.from_dataframe(gdf)
+        cweights = weights.Rook.from_dataframe(gdf)
     else:  # contiguity.lower() == "queen"
-        weights = weights.Queen.from_dataframe(gdf)
+        cweights = weights.Queen.from_dataframe(gdf)
     return weights
 
 
