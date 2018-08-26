@@ -1,6 +1,5 @@
 import networkx as nx
-import libpysal.api as ps_api
-
+from libpysal import weights
 
 def compare_region_lists(actual, desired):
     """
@@ -78,7 +77,7 @@ def convert_from_geodataframe(gdf):
         iterable of the key area's neighbors.
         The 4th entry is a PySAL W object.
     """
-    w = ps_api.Rook.from_dataframe(gdf)
+    w = weights.Rook.from_dataframe(gdf)
     graph = w.to_networkx()
     adj = nx.to_scipy_sparse_matrix(graph)
     neighbor_dict = w.neighbors
