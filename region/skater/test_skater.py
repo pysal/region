@@ -1,5 +1,5 @@
 #import pysal as ps
-from libpysal import io, 
+from libpysal import io
 import numpy as np
 from sklearn.metrics import pairwise as skm
 from region.skater.skater import Spanning_Forest
