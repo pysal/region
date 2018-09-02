@@ -141,10 +141,10 @@ def scipy_sparse_matrix_from_w(w):
     >>> neighbor_dict = {0: {1}, 1: {0, 2}, 2: {1}}
     >>> w = weights.W(neighbor_dict)
     >>> obtained = scipy_sparse_matrix_from_w(w)
-    >>> desired = np.array([[0, 1, 0],
-    ...                     [1, 0, 1],
-    ...                     [0, 1, 0]])
-    >>> (obtained.full()[0] == desired).all()
+    >>> desired = np.array([[0., 1., 0.],
+    ...                     [1., 0., 1.],
+    ...                     [0., 1., 0.]])
+    >>> obtained.todense().all() == desired.all()
     True
     """
     return w.sparse
@@ -357,7 +357,7 @@ def w_from_gdf(gdf, contiguity):
         cweights = weights.Rook.from_dataframe(gdf)
     else:  # contiguity.lower() == "queen"
         cweights = weights.Queen.from_dataframe(gdf)
-    return weights
+    return cweights
 
 
 def dataframe_to_dict(df, cols):
@@ -850,7 +850,7 @@ def check_solver(solver):
 
 
 def get_solver_instance(solver_string):
-    solver = {"cbc": pulp.solvers.COIN_CMD,
+    solver = {"cbc": pulp.solvers.PULP_CBC_CMD,
               "cplex": pulp.solvers.CPLEX,
               "glpk": pulp.solvers.GLPK,
               "gurobi": pulp.solvers.GUROBI}[solver_string.lower()]

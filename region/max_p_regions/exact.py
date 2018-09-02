@@ -150,7 +150,7 @@ class MaxPRegionsExact:
         # Solve the optimization problem
         solver = get_solver_instance(solver)
         print("start solving with", solver)
-        prob.solve(solver)
+        prob.solve(solver=solver)
         print("solved")
         result = np.zeros(n_areas)
         for i in I:

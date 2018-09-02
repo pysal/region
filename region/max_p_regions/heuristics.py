@@ -68,8 +68,8 @@ class MaxPRegionsHeu:
             The objective function to use.
         """
         print("f_f_SCIPY got:\n", attr, "\n", spatially_extensive_attr, "\n", threshold, sep="")
-        weights = weights.WSP(adj).to_W()
-        areas_dict = weights.neighbors
+        w = weights.WSP(adj).to_W()
+        areas_dict = w.neighbors
         self.metric = objective_func.metric
 
         best_partition = None
