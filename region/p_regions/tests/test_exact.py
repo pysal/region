@@ -10,11 +10,9 @@ from region.p_regions.tests.data import adj, neighbors_dict, gdf, graph, w, \
                   double_attr, double_attr_dict, \
                   optimal_clustering
 
-
 @pytest.fixture(params=["flow", "order", "tree"])
 def method(request):
     return request.param
-
 
 # ### TESTS WITH SCALAR attr ##################################################
 # test with csr_matrix

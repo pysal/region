@@ -1,7 +1,7 @@
 import random
 
 import networkx as nx
-import libpysal.api as ps_api
+from libpysal import weights
 
 from region.objective_function import ObjectiveFunctionPairwise
 from region.p_regions.azp import AZP
@@ -68,8 +68,8 @@ class MaxPRegionsHeu:
             The objective function to use.
         """
         print("f_f_SCIPY got:\n", attr, "\n", spatially_extensive_attr, "\n", threshold, sep="")
-        weights = ps_api.WSP(adj).to_W()
-        areas_dict = weights.neighbors
+        w = weights.WSP(adj).to_W()
+        areas_dict = w.neighbors
         self.metric = objective_func.metric
 
         best_partition = None
