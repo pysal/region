@@ -16,7 +16,6 @@ data = df[df.filter(like='90').columns.tolist()
                + df.filter(like='89').columns.tolist()].values
 data_c = (data - data.mean(axis=0)) / data.std(axis=0)
 W = weights.Queen.from_dataframe(df)
-south_inf_q20 = np.load(os.path.join(TESTDIR, 'south_inf_q20.ary'))
     
 def test_init():
     default = Spanning_Forest()
