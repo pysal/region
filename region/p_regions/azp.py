@@ -332,6 +332,9 @@ class AZP:
         while obj_val_end < obj_val_start:  # improvement
             obj_val_start = float(obj_val_end)
             distinct_regions = distinct_regions_copy.copy()
+            # step 6: when the list for region K is exhausted return to step 3
+            # and select another region and repeat steps 4-6
+
             while distinct_regions:
                 # step 3: select & remove any region K at random from this list
                 recipient = pop_randomly_from(distinct_regions)
@@ -339,6 +342,7 @@ class AZP:
                     # step 4: identify a set of zones bordering on members of
                     # region K that could be moved into region K without
                     # destroying the internal contiguity of the donor region(s)
+
                     candidates = []
                     for neigh in region_neighbors[recipient]:
                         neigh_region = labels[neigh]
@@ -360,6 +364,9 @@ class AZP:
                         cand = pop_randomly_from(candidates)
                         if self.allow_move_strategy(cand, recipient, labels):
                             donor = labels[cand]
+
+                            make_move(cand, recipient, labels)
+
                             region_neighbors[donor].add(cand)
                             region_neighbors[recipient].discard(cand)
 
@@ -382,6 +389,7 @@ class AZP:
                             break
                     else:
                         break
+
             obj_val_end = float(self.allow_move_strategy.objective_val)
         return labels
 
@@ -635,6 +643,7 @@ class AZPSimulatedAnnealing:
                 initial_labels = self.azp.labels_
 
                 if old_sol is not None:
+
                     if (old_sol == initial_labels).all():
                         break
             # added termination condition (not in Openshaw & Rao (1995))
@@ -787,6 +796,7 @@ class AZPBasicTabu(AZPTabu):
                 stop = True
 
             visited.append(label_tup)
+
             # step 1 Find the global best move that is not prohibited or tabu.
             # find possible moves (globally)
             best_move = None
@@ -817,7 +827,6 @@ class AZPBasicTabu(AZPTabu):
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
-
                 improving_tabus = [
                     move for move in self.tabu
                     if labels[move.area] == move.old_region
@@ -833,7 +842,6 @@ class AZPBasicTabu(AZPTabu):
                     # move, then make the best move even if it is nonimproving
                     # (that is, results in a worse value of the objective
                     # function).
-
                     if stop:
                         break
                     if best_move is not None:
