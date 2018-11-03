@@ -101,27 +101,26 @@ class MaxPRegionsHeu:
                 self.assign_enclaves(partition, enclaves, areas_dict, attr))
 
         for partition in feasible_partitions:
-            if verbose:
 
-        # local search phase
-        if self.local_search is None:
-            self.local_search = AZP()
-        self.local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
-            spatially_extensive_attr, threshold,
-            self.local_search.allow_move_strategy)
-        for partition in feasible_partitions:
-            self.local_search.fit_from_scipy_sparse_matrix(
-                adj,
-                attr,
-                max_p,
-                initial_labels=array_from_region_list(partition),
-                objective_func=objective_func)
-            partition = self.local_search.labels_
-            obj_value = objective_func(partition, attr)
-            if obj_value < best_obj_value:
-                best_obj_value = obj_value
-                best_partition = partition
-        self.labels_ = best_partition
+            # local search phase
+            if self.local_search is None:
+                self.local_search = AZP()
+            self.local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
+                spatially_extensive_attr, threshold,
+                self.local_search.allow_move_strategy)
+            for partition in feasible_partitions:
+                self.local_search.fit_from_scipy_sparse_matrix(
+                    adj,
+                    attr,
+                    max_p,
+                    initial_labels=array_from_region_list(partition),
+                    objective_func=objective_func)
+                partition = self.local_search.labels_
+                obj_value = objective_func(partition, attr)
+                if obj_value < best_obj_value:
+                    best_obj_value = obj_value
+                    best_partition = partition
+            self.labels_ = best_partition
 
     fit = copy_func(fit_from_scipy_sparse_matrix)
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
