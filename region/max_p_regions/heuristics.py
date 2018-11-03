@@ -37,8 +37,14 @@ class MaxPRegionsHeu:
         self.metric = raise_distance_metric_not_set
 
     def fit_from_scipy_sparse_matrix(
-            self, adj, attr, spatially_extensive_attr, threshold, max_it=10,
-            objective_func=ObjectiveFunctionPairwise()):
+            self,
+            adj,
+            attr,
+            spatially_extensive_attr,
+            threshold,
+            max_it=10,
+            objective_func=ObjectiveFunctionPairwise(),
+            verbose=False):
         """
         Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
 
@@ -67,7 +73,7 @@ class MaxPRegionsHeu:
         objective_func : :class:`region.objective_function.ObjectiveFunction`, default: ObjectiveFunctionPairwise()
             The objective function to use.
         """
-        print("f_f_SCIPY got:\n", attr, "\n", spatially_extensive_attr, "\n", threshold, sep="")
+
         w = weights.WSP(adj).to_W()
         areas_dict = w.neighbors
         self.metric = objective_func.metric
@@ -79,11 +85,9 @@ class MaxPRegionsHeu:
         max_p = 0  # maximum number of regions
 
         # construction phase
-        # print("constructing")
         for _ in range(max_it):
-            # print(" ", _)
             partition, enclaves = self.grow_regions(
-                    adj, attr, spatially_extensive_attr, threshold)
+                adj, attr, spatially_extensive_attr, threshold)
             n_regions = len(partition)
             if n_regions > max_p:
                 partitions_before_enclaves_assignment = [(partition, enclaves)]
@@ -92,28 +96,27 @@ class MaxPRegionsHeu:
                 partitions_before_enclaves_assignment.append((partition,
                                                               enclaves))
 
-        # print("\n" + "assigning enclaves")
         for partition, enclaves in partitions_before_enclaves_assignment:
-            # print("  cleaning up in partition", partition)
-            feasible_partitions.append(self.assign_enclaves(
-                    partition, enclaves, areas_dict, attr))
+            feasible_partitions.append(
+                self.assign_enclaves(partition, enclaves, areas_dict, attr))
 
         for partition in feasible_partitions:
-            print(partition, "\n")
+            if verbose:
 
         # local search phase
         if self.local_search is None:
             self.local_search = AZP()
         self.local_search.allow_move_strategy = AllowMoveAZPMaxPRegions(
-                spatially_extensive_attr, threshold,
-                self.local_search.allow_move_strategy)
+            spatially_extensive_attr, threshold,
+            self.local_search.allow_move_strategy)
         for partition in feasible_partitions:
             self.local_search.fit_from_scipy_sparse_matrix(
-                    adj, attr, max_p,
-                    initial_labels=array_from_region_list(partition),
-                    objective_func=objective_func)
+                adj,
+                attr,
+                max_p,
+                initial_labels=array_from_region_list(partition),
+                objective_func=objective_func)
             partition = self.local_search.labels_
-            # print("optimized partition", partition)
             obj_value = objective_func(partition, attr)
             if obj_value < best_obj_value:
                 best_obj_value = obj_value
@@ -124,8 +127,12 @@ class MaxPRegionsHeu:
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
-                      threshold, max_it=10,
+    def fit_from_dict(self,
+                      neighbors_dict,
+                      attr,
+                      spatially_extensive_attr,
+                      threshold,
+                      max_it=10,
                       objective_func=ObjectiveFunctionPairwise()):
         """
         Solve the max-p-regions problem in a heuristic way (see [DAR2012]_).
@@ -172,16 +179,24 @@ class MaxPRegionsHeu:
         if not isinstance(spatially_extensive_attr, dict) or \
                 spatially_extensive_attr.keys() != neighbors_dict.keys():
             raise ValueError(
-                    not_same_dict_keys_msg.format(spatially_extensive_attr))
+                not_same_dict_keys_msg.format(spatially_extensive_attr))
         adj = scipy_sparse_matrix_from_dict(neighbors_dict)
         attr_arr = array_from_dict_values(attr)
         spat_ext_attr_arr = array_from_dict_values(spatially_extensive_attr)
-        self.fit_from_scipy_sparse_matrix(adj, attr_arr, spat_ext_attr_arr,
-                                          threshold=threshold, max_it=max_it,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr_arr,
+            spat_ext_attr_arr,
+            threshold=threshold,
+            max_it=max_it,
+            objective_func=objective_func)
 
-    def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
-                              threshold, max_it=10,
+    def fit_from_geodataframe(self,
+                              gdf,
+                              attr,
+                              spatially_extensive_attr,
+                              threshold,
+                              max_it=10,
                               objective_func=ObjectiveFunctionPairwise(),
                               contiguity="rook"):
         """
@@ -218,11 +233,20 @@ class MaxPRegionsHeu:
         attr = array_from_df_col(gdf, attr)
         spat_ext_attr = array_from_df_col(gdf, spatially_extensive_attr)
 
-        self.fit_from_w(w, attr, spat_ext_attr, threshold=threshold,
-                        max_it=max_it, objective_func=objective_func)
+        self.fit_from_w(
+            w,
+            attr,
+            spat_ext_attr,
+            threshold=threshold,
+            max_it=max_it,
+            objective_func=objective_func)
 
-    def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
-                          threshold, max_it=10,
+    def fit_from_networkx(self,
+                          graph,
+                          attr,
+                          spatially_extensive_attr,
+                          threshold,
+                          max_it=10,
                           objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -270,12 +294,21 @@ class MaxPRegionsHeu:
         adj = nx.to_scipy_sparse_matrix(graph)
         attr = array_from_graph_or_dict(graph, attr)
         sp_ext_attr = array_from_graph_or_dict(graph, spatially_extensive_attr)
-        self.fit_from_scipy_sparse_matrix(adj, attr, sp_ext_attr,
-                                          threshold=threshold, max_it=max_it,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            sp_ext_attr,
+            threshold=threshold,
+            max_it=max_it,
+            objective_func=objective_func)
 
-    def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
-                   max_it=10, objective_func=ObjectiveFunctionPairwise()):
+    def fit_from_w(self,
+                   w,
+                   attr,
+                   spatially_extensive_attr,
+                   threshold,
+                   max_it=10,
+                   objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -302,9 +335,13 @@ class MaxPRegionsHeu:
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
-        self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
-                                          threshold, max_it=max_it,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            spatially_extensive_attr,
+            threshold,
+            max_it=max_it,
+            objective_func=objective_func)
 
     def grow_regions(self, adj, attr, spatially_extensive_attr, threshold):
         """
@@ -332,37 +369,26 @@ class MaxPRegionsHeu:
             `result[0]`.
             `result[1]` is a `list` of areas not assigned to any region.
         """
-        # print("grow_regions called with spatially_extensive_attr", spatially_extensive_attr)
         partition = []
         enclave_areas = []
         unassigned_areas = list(range(adj.shape[0]))
         assigned_areas = []
 
-        # todo: rm prints
         while unassigned_areas:
-            # print("partition", partition)
             area = pop_randomly_from(unassigned_areas)
-            # print("seed in area", area)
             assigned_areas.append(area)
             if (spatially_extensive_attr[area] >= threshold).all():
-                # print("  seed --> region :)")
-                # print("because", spatially_extensive_attr[area], ">=", threshold)
                 partition.append({area})
             else:
                 region = {area}
-                # print("  all neighbors:", neigh_dict[area])
-                # print("  already assigned:", assigned_areas)
-                unassigned_neighs = set(adj[area].nonzero()[1]).difference(
-                        assigned_areas)
+                unassigned_neighs = set(
+                    adj[area].nonzero()[1]).difference(assigned_areas)
                 feasible = True
                 spat_ext_attr = spatially_extensive_attr[area].copy()
                 while (spat_ext_attr < threshold).any():
-                    # print(" ", spat_ext_attr, "<", threshold, "Need neighs!")
-                    # print("  potential neighbors:", unassigned_neighs)
                     if unassigned_neighs:
                         neigh = self.find_best_area(region, unassigned_neighs,
                                                     attr)
-                        # print(" we choose neighbor", neigh)
                         region.add(neigh)
                         unassigned_neighs.remove(neigh)
                         unassigned_neighs.update(set(adj[neigh].nonzero()[1]))
@@ -371,7 +397,6 @@ class MaxPRegionsHeu:
                         unassigned_areas.remove(neigh)
                         assigned_areas.append(neigh)
                     else:
-                        # print("  Oh no! No neighbors left :(")
                         enclave_areas.extend(region)
                         feasible = False
                         # the following line (present in the algorithm in
@@ -383,10 +408,6 @@ class MaxPRegionsHeu:
                         break
                 if feasible:
                     partition.append(region)
-                # print("  unassigned:", unassigned_areas)
-                # print("  assigned:", assigned_areas)
-                # print()
-        # print("grow_regions partit.:", partition, "enclaves:", enclave_areas)
         return partition, enclave_areas
 
     def find_best_area(self, region, candidates, attr):
@@ -407,12 +428,16 @@ class MaxPRegionsHeu:
             An element of `candidates` with minimal dissimilarity when being
             moved to the region `region`.
         """
-        candidates = {area: sum(self.metric(attr[area].reshape(1, -1),
-                                            attr[area2].reshape(1, -1))
-                                for area2 in region)
-                      for area in candidates}
-        best_candidates = [area for area in candidates
-                           if candidates[area] == min(candidates.values())]
+        candidates = {
+            area: sum(
+                self.metric(attr[area].reshape(1, -1), attr[area2].reshape(
+                    1, -1)) for area2 in region)
+            for area in candidates
+        }
+        best_candidates = [
+            area for area in candidates
+            if candidates[area] == min(candidates.values())
+        ]
         return random_element_from(best_candidates)
 
     def assign_enclaves(self, partition, enclave_areas, neigh_dict, attr):
@@ -440,11 +465,11 @@ class MaxPRegionsHeu:
         partition : `list`
             Each element (of type `set`) represents a region.
         """
-        # print("partition:", partition, "- enclaves:", enclave_areas)
         while enclave_areas:
-            neighbors_of_assigned = [area for area in enclave_areas
-                                     if any(neigh not in enclave_areas
-                                            for neigh in neigh_dict[area])]
+            neighbors_of_assigned = [
+                area for area in enclave_areas if any(
+                    neigh not in enclave_areas for neigh in neigh_dict[area])
+            ]
             area = pop_randomly_from(neighbors_of_assigned)
             neigh_regions_idx = []
             for neigh in neigh_dict[area]:
@@ -482,12 +507,15 @@ class MaxPRegionsHeu:
             The index of a region (w.r.t. `partition`) which has the smallest
             sum of dissimilarities after area `area` is moved to the region.
         """
-        dissim_per_idx = {region_idx:
-                          sum(self.metric(attr[area].reshape(1, -1),
-                                          attr[area2].reshape(1, -1))
-                              for area2 in partition[region_idx])
-                          for region_idx in candidate_regions_idx}
+        dissim_per_idx = {
+            region_idx: sum(
+                self.metric(attr[area].reshape(1, -1), attr[area2].reshape(
+                    1, -1)) for area2 in partition[region_idx])
+            for region_idx in candidate_regions_idx
+        }
         minimum_dissim = min(dissim_per_idx.values())
-        best_idxs = [idx for idx in dissim_per_idx
-                     if dissim_per_idx[idx] == minimum_dissim]
+        best_idxs = [
+            idx for idx in dissim_per_idx
+            if dissim_per_idx[idx] == minimum_dissim
+        ]
         return random_element_from(best_idxs)
