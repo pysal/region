@@ -1,11 +1,8 @@
-# based on https://github.com/pypa/sampleproject/blob/master/setup.py and
-# https://github.com/pysal/pysal/blob/master/setup.py
-
 # Always prefer setuptools over distutils
 from setuptools import setup, find_packages
 from os import path
 
-here = path.abspath(path.dirname(__file__))
+curr_dir = path.abspath(path.dirname(__file__))
 
 MAJOR = 0
 MINOR = 1
@@ -15,8 +12,8 @@ VERSION = "{}.{}.{}".format(MAJOR, MINOR, PATCH)
 if __name__ == "__main__":
     
     # Get the long description from the README file
-    with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
-        long_description = f.read()
+    with open(path.join(curr_dir, 'README.rst'), encoding='utf-8') as file:
+        long_description = file.read()
     
     setup(name='region',
           version=VERSION,
