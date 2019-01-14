@@ -24,13 +24,18 @@ class MaxPRegionsExact:
     labels_ : dict
         Each key is an area and each value the region it has been assigned to.
     """
+
     def __init__(self):
         self.labels_ = None
         self.solver = None
         self.metric = raise_distance_metric_not_set
 
-    def fit_from_scipy_sparse_matrix(self, adj, attr, spatially_extensive_attr,
-                                     threshold, solver="cbc",
+    def fit_from_scipy_sparse_matrix(self,
+                                     adj,
+                                     attr,
+                                     spatially_extensive_attr,
+                                     threshold,
+                                     solver="cbc",
                                      metric="euclidean"):
         """
         Solve the max-p-regions problem as MIP as described in [DAR2012]_.
@@ -75,28 +80,28 @@ class MaxPRegionsExact:
         # Parameters of the optimization problem
         n_areas = adj.shape[0]
         I = list(range(n_areas))  # index for areas
-        II = [(i, j)
-              for i in I
-              for j in I]
+        II = [(i, j) for i in I for j in I]
         II_upper_triangle = [(i, j) for i, j in II if i < j]
         # index of potential regions, called k in [DAR2012]_:
         K = range(n_areas)
         # index of contiguity order, called c in [DAR2012]_:
         O = range(n_areas)
-        d = {(i, j): self.metric(attr[i].reshape(1, -1),
-                                 attr[j].reshape(1, -1))
+        d = {(i, j): self.metric(attr[i].reshape(1, -1), attr[j].reshape(
+            1, -1))
              for i, j in II_upper_triangle}
         h = 1 + floor(log10(sum(d[(i, j)] for i, j in II_upper_triangle)))
 
         # Decision variables
         t = LpVariable.dicts(
-            "t",
-            ((i, j) for i, j in II_upper_triangle),
-            lowBound=0, upBound=1, cat=LpInteger)
+            "t", ((i, j) for i, j in II_upper_triangle),
+            lowBound=0,
+            upBound=1,
+            cat=LpInteger)
         x = LpVariable.dicts(
-            "x",
-            ((i, k, o) for i in I for k in K for o in O),
-            lowBound=0, upBound=1, cat=LpInteger)
+            "x", ((i, k, o) for i in I for k in K for o in O),
+            lowBound=0,
+            upBound=1,
+            cat=LpInteger)
 
         # Objective function
         # (1) in Duque et al. (2012): "The Max-p-Regions Problem"
@@ -114,13 +119,13 @@ class MaxPRegionsExact:
         for i in I:
             for k in K:
                 for o in range(1, len(O)):
-                    prob += x[i, k, o] <= lpSum(x[j, k, o-1]
+                    prob += x[i, k, o] <= lpSum(x[j, k, o - 1]
                                                 for j in neighbors(adj, i))
         # (5) in Duque et al. (2012): "The Max-p-Regions Problem"
         if isinstance(spatially_extensive_attr[I[0]], numbers.Real):
             for k in K:
-                lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i]
-                            for i in I for o in O)
+                lhs = lpSum(x[i, k, o] * spatially_extensive_attr[i] for i in I
+                            for o in O)
                 prob += lhs >= threshold * lpSum(x[i, k, 0] for i in I)
         elif isinstance(spatially_extensive_attr[I[0]], collections.Iterable):
             for el in range(len(spatially_extensive_attr[I[0]])):
@@ -149,9 +154,7 @@ class MaxPRegionsExact:
 
         # Solve the optimization problem
         solver = get_solver_instance(solver)
-        print("start solving with", solver)
         prob.solve(solver=solver)
-        print("solved")
         result = np.zeros(n_areas)
         for i in I:
             for k in K:
@@ -165,8 +168,13 @@ class MaxPRegionsExact:
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_dict(self, neighbors_dict, attr, spatially_extensive_attr,
-                      threshold, solver="cbc", metric="euclidean"):
+    def fit_from_dict(self,
+                      neighbors_dict,
+                      attr,
+                      spatially_extensive_attr,
+                      threshold,
+                      solver="cbc",
+                      metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -209,17 +217,26 @@ class MaxPRegionsExact:
         if not isinstance(spatially_extensive_attr, dict) or \
                 spatially_extensive_attr.keys() != neighbors_dict.keys():
             raise ValueError(
-                    not_same_dict_keys_msg.format(spatially_extensive_attr))
+                not_same_dict_keys_msg.format(spatially_extensive_attr))
 
         adj = scipy_sparse_matrix_from_dict(neighbors_dict)
         attr_arr = array_from_dict_values(attr)
         spat_ext_attr_arr = array_from_dict_values(spatially_extensive_attr)
-        self.fit_from_scipy_sparse_matrix(adj, attr_arr, spat_ext_attr_arr,
-                                          threshold=threshold, solver=solver,
-                                          metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr_arr,
+            spat_ext_attr_arr,
+            threshold=threshold,
+            solver=solver,
+            metric=metric)
 
-    def fit_from_geodataframe(self, gdf, attr, spatially_extensive_attr,
-                              threshold, solver="cbc", metric="euclidean",
+    def fit_from_geodataframe(self,
+                              gdf,
+                              attr,
+                              spatially_extensive_attr,
+                              threshold,
+                              solver="cbc",
+                              metric="euclidean",
                               contiguity="rook"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -255,11 +272,21 @@ class MaxPRegionsExact:
         attr = array_from_df_col(gdf, attr)
         spat_ext_attr = array_from_df_col(gdf, spatially_extensive_attr)
 
-        self.fit_from_w(w, attr, spat_ext_attr, threshold=threshold,
-                        solver=solver, metric=metric)
+        self.fit_from_w(
+            w,
+            attr,
+            spat_ext_attr,
+            threshold=threshold,
+            solver=solver,
+            metric=metric)
 
-    def fit_from_networkx(self, graph, attr, spatially_extensive_attr,
-                          threshold, solver="cbc", metric="euclidean"):
+    def fit_from_networkx(self,
+                          graph,
+                          attr,
+                          spatially_extensive_attr,
+                          threshold,
+                          solver="cbc",
+                          metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -306,12 +333,21 @@ class MaxPRegionsExact:
         adj = nx.to_scipy_sparse_matrix(graph)
         attr = array_from_graph_or_dict(graph, attr)
         sp_ext_attr = array_from_graph_or_dict(graph, spatially_extensive_attr)
-        self.fit_from_scipy_sparse_matrix(adj, attr, sp_ext_attr,
-                                          threshold=threshold, solver=solver,
-                                          metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            sp_ext_attr,
+            threshold=threshold,
+            solver=solver,
+            metric=metric)
 
-    def fit_from_w(self, w, attr, spatially_extensive_attr, threshold,
-                   solver="cbc", metric="euclidean"):
+    def fit_from_w(self,
+                   w,
+                   attr,
+                   spatially_extensive_attr,
+                   threshold,
+                   solver="cbc",
+                   metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -336,6 +372,10 @@ class MaxPRegionsExact:
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
-        self.fit_from_scipy_sparse_matrix(adj, attr, spatially_extensive_attr,
-                                          threshold=threshold, solver=solver,
-                                          metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            spatially_extensive_attr,
+            threshold=threshold,
+            solver=solver,
+            metric=metric)

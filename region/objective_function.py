@@ -73,25 +73,22 @@ class ObjectiveFunctionPairwise(ObjectiveFunction):
         11
         """
         regions_set = set(labels)
-        obj_val = sum(self.metric(attr[i].reshape(1, -1),
-                                  attr[j].reshape(1, -1))
-                      for r in regions_set
-                      for i, j in
-                      itertools.combinations(np.where(labels == r)[0], 2))
+        obj_val = sum(
+            self.metric(attr[i].reshape(1, -1), attr[j].reshape(1, -1))
+            for r in regions_set
+            for i, j in itertools.combinations(np.where(labels == r)[0], 2))
         return obj_val
 
     def update(self, moving_area, recipient_region, labels, attr):
-        print("update objective function pairwise")
         donor_region = labels[moving_area]
 
         attr_donor = attr[labels == donor_region]
-        donor_diff = sum(self.metric(attr_donor,
-                         attr[moving_area].reshape(1, -1)))
+        donor_diff = sum(
+            self.metric(attr_donor, attr[moving_area].reshape(1, -1)))
 
         attr_recipient = attr[labels == recipient_region]
-        recipient_diff = sum(self.metric(attr_recipient,
-                             attr[moving_area].reshape(1, -1)))
-        print("obj. val. difference:", recipient_diff - donor_diff)
+        recipient_diff = sum(
+            self.metric(attr_recipient, attr[moving_area].reshape(1, -1)))
         return recipient_diff - donor_diff
 
 
@@ -133,39 +130,36 @@ class ObjectiveFunctionCenter(ObjectiveFunction):
         1
         """
         regions = sorted(set(labels))
-        objective_per_region = [self._intraregional_heterogeneity(labels, r,
-                                                                  attr)
-                                for r in regions]
+        objective_per_region = [
+            self._intraregional_heterogeneity(labels, r, attr) for r in regions
+        ]
         obj_val = self.reduction(objective_per_region)
         return obj_val
 
     def _intraregional_heterogeneity(self, labels, region, attr):
         return self.reduction(
-                self.metric(
-                        attr[labels == region],
-                        self.center(attr[labels == region],
-                                    axis=0).reshape(1, -1)),
-                axis=0)
+            self.metric(
+                attr[labels == region],
+                self.center(attr[labels == region], axis=0).reshape(1, -1)),
+            axis=0)
 
     def update(self, moving_area, recipient_region, labels, attr):
         donor_region = labels[moving_area]
 
         donor_before = self._intraregional_heterogeneity(
-                labels, donor_region, attr)
+            labels, donor_region, attr)
         recipient_before = self._intraregional_heterogeneity(
-                labels, recipient_region, attr)
+            labels, recipient_region, attr)
 
         labels[moving_area] = recipient_region
         donor_after = self._intraregional_heterogeneity(
-                labels, donor_region, attr)
+            labels, donor_region, attr)
         recipient_after = self._intraregional_heterogeneity(
-                labels, recipient_region, attr)
+            labels, recipient_region, attr)
         labels[moving_area] = donor_region
 
         overall_before = self.reduction((donor_before, recipient_before))
         overall_after = self.reduction((donor_after, recipient_after))
         diff = overall_after - overall_before
 
-        print("diff", diff)
-        print("labels", labels)
         return diff

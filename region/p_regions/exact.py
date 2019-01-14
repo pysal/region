@@ -34,6 +34,7 @@ class PRegionsExact:
     solver : str
         The solver used in the last call of a fit-method.
     """
+
     def __init__(self):
         self.n_regions = None
         self.labels_ = None
@@ -41,8 +42,12 @@ class PRegionsExact:
         self.solver = None
         self.metric = raise_distance_metric_not_set
 
-    def fit_from_scipy_sparse_matrix(self, adj, attr, n_regions,
-                                     method="flow", solver="cbc",
+    def fit_from_scipy_sparse_matrix(self,
+                                     adj,
+                                     attr,
+                                     n_regions,
+                                     method="flow",
+                                     solver="cbc",
                                      metric="euclidean"):
         """
         Solve the p-regions problem as MIP as described in [DCM2011]_.
@@ -92,9 +97,11 @@ class PRegionsExact:
         check_solver(solver)
         metric = get_metric_function(metric)
 
-        opt_func = {"flow": _flow,
-                    "order": _order,
-                    "tree": _tree}[method.lower()]
+        opt_func = {
+            "flow": _flow,
+            "order": _order,
+            "tree": _tree
+        }[method.lower()]
 
         result_dict = opt_func(adj, attr, n_regions, solver, metric)
         self.labels_ = result_dict
@@ -107,8 +114,13 @@ class PRegionsExact:
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_dict(self, neighbors_dict, attr, n_regions, method="flow",
-                      solver="cbc", metric="euclidean"):
+    def fit_from_dict(self,
+                      neighbors_dict,
+                      attr,
+                      n_regions,
+                      method="flow",
+                      solver="cbc",
+                      metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -144,12 +156,21 @@ class PRegionsExact:
         adj = scipy_sparse_matrix_from_dict(neighbors_dict)
         attr_arr = array_from_dict_values(attr)
 
-        self.fit_from_scipy_sparse_matrix(adj, attr_arr, n_regions,
-                                          method=method, solver=solver,
-                                          metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr_arr,
+            n_regions,
+            method=method,
+            solver=solver,
+            metric=metric)
 
-    def fit_from_geodataframe(self, gdf, attr, n_regions, method="flow",
-                              solver="cbc", metric="euclidean",
+    def fit_from_geodataframe(self,
+                              gdf,
+                              attr,
+                              n_regions,
+                              method="flow",
+                              solver="cbc",
+                              metric="euclidean",
                               contiguity="rook"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -184,11 +205,16 @@ class PRegionsExact:
         """
         w = w_from_gdf(gdf, contiguity)
         attr = array_from_df_col(gdf, attr)
-        self.fit_from_w(w, attr, n_regions, method=method, solver=solver,
-                        metric=metric)
+        self.fit_from_w(
+            w, attr, n_regions, method=method, solver=solver, metric=metric)
 
-    def fit_from_networkx(self, graph, attr, n_regions, method="flow",
-                          solver="cbc", metric="euclidean"):
+    def fit_from_networkx(self,
+                          graph,
+                          attr,
+                          n_regions,
+                          method="flow",
+                          solver="cbc",
+                          metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
 
@@ -224,10 +250,15 @@ class PRegionsExact:
         """
         adj = nx.to_scipy_sparse_matrix(graph)
         attr = array_from_graph_or_dict(graph, attr)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, method=method,
-                                          solver=solver, metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj, attr, n_regions, method=method, solver=solver, metric=metric)
 
-    def fit_from_w(self, w, attr, n_regions, method="flow", solver="cbc",
+    def fit_from_w(self,
+                   w,
+                   attr,
+                   n_regions,
+                   method="flow",
+                   solver="cbc",
                    metric="euclidean"):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -253,8 +284,8 @@ class PRegionsExact:
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, method=method,
-                                          solver=solver, metric=metric)
+        self.fit_from_scipy_sparse_matrix(
+            adj, attr, n_regions, method=method, solver=solver, metric=metric)
 
     @staticmethod
     def _check_method(method):
@@ -289,38 +320,42 @@ def _flow(adj, attr, n_regions, solver, metric):
     result : :class:`numpy.ndarray`
         A one-dimensional array containing each area's region label.
     """
-    print("running FLOW algorithm")  # TODO: rm
     prob = LpProblem("Flow", LpMinimize)
 
     # Parameters of the optimization problem
     n_areas = adj.shape[0]
     I = list(range(n_areas))  # index for areas
-    II = [(i, j)
-          for i in I
-          for j in I]
+    II = [(i, j) for i in I for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
-    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
-                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
-         for i, j in II_upper_triangle}
+    d = {
+        (i, j): metric(
+            attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+            attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
+        for i, j in II_upper_triangle
+    }
 
     # Decision variables
     t = LpVariable.dicts(
-        "t",
-        ((i, j) for i, j in II_upper_triangle),
-        lowBound=0, upBound=1, cat=LpInteger)
-    f = LpVariable.dicts(           # The amount of flow (non-negative integer)
-        "f",                        # from area i to j in region k.
+        "t", ((i, j) for i, j in II_upper_triangle),
+        lowBound=0,
+        upBound=1,
+        cat=LpInteger)
+    f = LpVariable.dicts(  # The amount of flow (non-negative integer)
+        "f",  # from area i to j in region k.
         ((i, j, k) for i in I for j in neighbors(adj, i) for k in K),
-        lowBound=0, cat=LpInteger)
+        lowBound=0,
+        cat=LpInteger)
     y = LpVariable.dicts(  # 1 if area i is assigned to region k. 0 otherwise.
-        "y",
-        ((i, k) for i in I for k in K),
-        lowBound=0, upBound=1, cat=LpInteger)
+        "y", ((i, k) for i in I for k in K),
+        lowBound=0,
+        upBound=1,
+        cat=LpInteger)
     w = LpVariable.dicts(  # 1 if area i is chosen as a sink. 0 otherwise.
-        "w",
-        ((i, k) for i in I for k in K),
-        lowBound=0, upBound=1, cat=LpInteger)
+        "w", ((i, k) for i in I for k in K),
+        lowBound=0,
+        upBound=1,
+        cat=LpInteger)
 
     # Objective function
     # (20) in Duque et al. (2011): "The p-Regions Problem"
@@ -396,31 +431,33 @@ def _order(adj, attr, n_regions, solver, metric):
     result : :class:`numpy.ndarray`
         Refer to the return value in :func:`_flow`.
     """
-    print("running ORDER algorithm")  # TODO: rm
     prob = LpProblem("Order", LpMinimize)
 
     # Parameters of the optimization problem
     n_areas = attr.shape[0]
     I = list(range(n_areas))  # index for areas
-    II = [(i, j)
-          for i in I
-          for j in I]
+    II = [(i, j) for i in I for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
     K = range(n_regions)  # index for regions
     O = range(n_areas - n_regions)  # index for orders
-    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
-                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
-         for i, j in II_upper_triangle}
+    d = {
+        (i, j): metric(
+            attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+            attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
+        for i, j in II_upper_triangle
+    }
 
     # Decision variables
     t = LpVariable.dicts(
-        "t",
-        ((i, j) for i, j in II_upper_triangle),
-        lowBound=0, upBound=1, cat=LpInteger)
+        "t", ((i, j) for i, j in II_upper_triangle),
+        lowBound=0,
+        upBound=1,
+        cat=LpInteger)
     x = LpVariable.dicts(
-        "x",
-        ((i, k, o) for i in I for k in K for o in O),
-        lowBound=0, upBound=1, cat=LpInteger)
+        "x", ((i, k, o) for i in I for k in K for o in O),
+        lowBound=0,
+        upBound=1,
+        cat=LpInteger)
 
     # Objective function
     # (13) in Duque et al. (2011): "The p-Regions Problem"
@@ -437,8 +474,8 @@ def _order(adj, attr, n_regions, solver, metric):
     for i in I:
         for k in K:
             for o in range(1, len(O)):
-                    prob += x[i, k, o] <= \
-                            sum(x[j, k, o-1] for j in neighbors(adj, i))
+                prob += x[i, k, o] <= \
+                        sum(x[j, k, o-1] for j in neighbors(adj, i))
     # (17) in Duque et al. (2011): "The p-Regions Problem"
     for i, j in II_upper_triangle:
         for k in K:
@@ -481,32 +518,25 @@ def _tree(adj, attr, n_regions, solver, metric):
     result : :class:`numpy.ndarray`
         Refer to the return value in :func:`_flow`.
     """
-    print("running TREE algorithm")  # TODO: rm
     prob = LpProblem("Tree", LpMinimize)
 
     # Parameters of the optimization problem
     n_areas = attr.shape[0]
     I = list(range(n_areas))  # index for areas
-    II = [(i, j)
-          for i in I
-          for j in I]
+    II = [(i, j) for i in I for j in I]
     II_upper_triangle = [(i, j) for i, j in II if i < j]
-    d = {(i, j): metric(attr[i].reshape(attr.shape[1], 1),  # reshaping to...
-                        attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
-         for i, j in II}
+    d = {
+        (i, j): metric(
+            attr[i].reshape(attr.shape[1], 1),  # reshaping to...
+            attr[j].reshape(attr.shape[1], 1))  # ...avoid warnings
+        for i, j in II
+    }
     # Decision variables
     t = LpVariable.dicts(
-        "t",
-        ((i, j) for i, j in II),
-        lowBound=0, upBound=1, cat=LpInteger)
+        "t", ((i, j) for i, j in II), lowBound=0, upBound=1, cat=LpInteger)
     x = LpVariable.dicts(
-        "x",
-        ((i, j) for i, j in II),
-        lowBound=0, upBound=1, cat=LpInteger)
-    u = LpVariable.dicts(
-        "u",
-        (i for i in I),
-        lowBound=0, cat=LpInteger)
+        "x", ((i, j) for i, j in II), lowBound=0, upBound=1, cat=LpInteger)
+    u = LpVariable.dicts("u", (i for i in I), lowBound=0, cat=LpInteger)
 
     # Objective function
     # (3) in Duque et al. (2011): "The p-Regions Problem"

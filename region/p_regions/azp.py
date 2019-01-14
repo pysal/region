@@ -28,6 +28,7 @@ class AZP:
         Each element is a region label specifying to which region the
         corresponding area was assigned to by the last run of a fit-method.
     """
+
     def __init__(self, allow_move_strategy=None, random_state=None):
         """
         Parameters
@@ -55,7 +56,11 @@ class AZP:
         self.objective_func = None
 
     def fit_from_scipy_sparse_matrix(
-            self, adj, attr, n_regions, initial_labels=None,
+            self,
+            adj,
+            attr,
+            n_regions,
+            initial_labels=None,
             objective_func=ObjectiveFunctionPairwise()):
         """
         Perform the AZP algorithm as described in [OR1995]_.
@@ -95,10 +100,10 @@ class AZP:
             labels_comp = labels_comp[comp_idx]
             attr_comp = attr[comp_idx]
             self.allow_move_strategy.start_new_component(
-                    labels_comp, attr_comp, self.objective_func, comp_idx)
-            
+                labels_comp, attr_comp, self.objective_func, comp_idx)
+
             labels_comp = self._azp_connected_component(
-                    adj_comp, labels_comp, attr_comp)
+                adj_comp, labels_comp, attr_comp)
             labels[comp_idx] = labels_comp
 
         self.n_regions = n_regions
@@ -108,7 +113,11 @@ class AZP:
     fit.__doc__ = "Alias for :meth:`fit_from_scipy_sparse_matrix`.\n\n" \
                   + fit_from_scipy_sparse_matrix.__doc__
 
-    def fit_from_w(self, w, attr, n_regions, initial_labels=None,
+    def fit_from_w(self,
+                   w,
+                   attr,
+                   n_regions,
+                   initial_labels=None,
                    objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -131,10 +140,18 @@ class AZP:
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            n_regions,
+            initial_labels,
+            objective_func=objective_func)
 
-    def fit_from_networkx(self, graph, attr, n_regions, initial_labels=None,
+    def fit_from_networkx(self,
+                          graph,
+                          attr,
+                          n_regions,
+                          initial_labels=None,
                           objective_func=ObjectiveFunctionPairwise()):
         """
         Alternative API for :meth:`fit_from_scipy_sparse_matrix`.
@@ -173,10 +190,18 @@ class AZP:
         attr = array_from_graph_or_dict(graph, attr)
         if initial_labels is not None:
             initial_labels = array_from_graph_or_dict(graph, initial_labels)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            n_regions,
+            initial_labels,
+            objective_func=objective_func)
 
-    def fit_from_geodataframe(self, gdf, attr, n_regions, contiguity="rook",
+    def fit_from_geodataframe(self,
+                              gdf,
+                              attr,
+                              n_regions,
+                              contiguity="rook",
                               initial_labels=None,
                               objective_func=ObjectiveFunctionPairwise()):
         """
@@ -209,10 +234,13 @@ class AZP:
         """
         w = w_from_gdf(gdf, contiguity)
         attr = array_from_df_col(gdf, attr)
-        self.fit_from_w(w, attr, n_regions, initial_labels,
-                        objective_func=objective_func)
+        self.fit_from_w(
+            w, attr, n_regions, initial_labels, objective_func=objective_func)
 
-    def fit_from_dict(self, neighbor_dict, attr, n_regions,
+    def fit_from_dict(self,
+                      neighbor_dict,
+                      attr,
+                      n_regions,
                       initial_labels=None,
                       objective_func=ObjectiveFunctionPairwise()):
         """
@@ -244,13 +272,14 @@ class AZP:
         attr_arr = array_from_dict_values(attr, sorted_areas)
 
         if initial_labels is not None:
-            initial_labels = array_from_dict_values(initial_labels,
-                                                    sorted_areas,
-                                                    flat_output=True,
-                                                    dtype=np.int32)
-        self.fit_from_scipy_sparse_matrix(adj, attr_arr, n_regions,
-                                          initial_labels,
-                                          objective_func=objective_func)
+            initial_labels = array_from_dict_values(
+                initial_labels, sorted_areas, flat_output=True, dtype=np.int32)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr_arr,
+            n_regions,
+            initial_labels,
+            objective_func=objective_func)
 
     def _azp_connected_component(self, adj, initial_clustering, attr):
         """
@@ -287,56 +316,40 @@ class AZP:
         #  step 2: make a list of the M regions
         labels = initial_clustering
 
-        # print("Init with: ", initial_clustering)
         obj_val_start = float("inf")
         obj_val_end = self.allow_move_strategy.objective_val
-        print("start with obj. val.:", obj_val_end)
 
         region_neighbors = {}
         for region in distinct_regions:
             region_areas = set(np.where(labels == region)[0])
-            # print("region consists of areas", region_areas)
-            # print("adj", adj.todense())
             neighs = set()
             for area in region_areas:
                 neighs.update(neighbors(adj, area))
             region_neighbors[region] = neighs.difference(region_areas)
-        print("RN", region_neighbors)
         del neighs
 
         # step 7: Repeat until no further improving moves are made
         while obj_val_end < obj_val_start:  # improvement
-            print("obj_val:", obj_val_start, "-->", obj_val_end,
-                  "...continue...")
-            # print("=" * 45)
-            # print("step 7")
             obj_val_start = float(obj_val_end)
-            print("step 2")
             distinct_regions = distinct_regions_copy.copy()
             # step 6: when the list for region K is exhausted return to step 3
             # and select another region and repeat steps 4-6
-            # print("-" * 35)
-            # print("step 6")
+
             while distinct_regions:
                 # step 3: select & remove any region K at random from this list
-                print("step 3")
                 recipient = pop_randomly_from(distinct_regions)
-                print("  chosen region:", recipient)
                 while True:
                     # step 4: identify a set of zones bordering on members of
                     # region K that could be moved into region K without
                     # destroying the internal contiguity of the donor region(s)
-                    print("step 4")
-                    # print("  labels:", labels)
-                    # print("  neighbors per region:")
-                    # print(region_neighbors)
+
                     candidates = []
                     for neigh in region_neighbors[recipient]:
                         neigh_region = labels[neigh]
                         sub_adj = sub_adj_matrix(
-                                adj,
-                                np.where(labels == neigh_region)[0],
-                                wo_nodes=neigh)
+                            adj,
+                            np.where(labels == neigh_region)[0],
+                            wo_nodes=neigh)
                         if is_connected(sub_adj):
                             # if area is alone in its region, it must stay
                             if count(labels, neigh_region) > 1:
@@ -347,14 +360,11 @@ class AZP:
                     # as the current best. Then make the move, update the list
                     # of candidate zones, and return to step 4 or else repeat
                     # step 5 until the list is exhausted.
-                    print("step 5")
                     while candidates:
-                        print("step 5 loop")
                         cand = pop_randomly_from(candidates)
                         if self.allow_move_strategy(cand, recipient, labels):
                             donor = labels[cand]
-                            print("  MOVING {} from {} to {}".format(
-                                    cand, donor, recipient))
+
                             make_move(cand, recipient, labels)
 
                             region_neighbors[donor].add(cand)
@@ -363,24 +373,23 @@ class AZP:
                             neighs_of_cand = neighbors(adj, cand)
 
                             recipient_region_areas = set(
-                                    np.where(labels == recipient)[0])
+                                np.where(labels == recipient)[0])
                             region_neighbors[recipient].update(neighs_of_cand)
                             region_neighbors[recipient].difference_update(
-                                    recipient_region_areas)
+                                recipient_region_areas)
 
                             donor_region_areas = set(
-                                    np.where(labels == donor)[0])
+                                np.where(labels == donor)[0])
                             not_donor_neighs_anymore = set(
-                                    area for area in neighs_of_cand
-                                    if not any(a in donor_region_areas
-                                               for a in neighbors(adj, area)))
+                                area for area in neighs_of_cand if not any(
+                                    a in donor_region_areas
+                                    for a in neighbors(adj, area)))
                             region_neighbors[donor].difference_update(
-                                    not_donor_neighs_anymore)
-                            print("improved objective to {}".format(float(self.allow_move_strategy.objective_val)))
+                                not_donor_neighs_anymore)
                             break
                     else:
-                        print(self.allow_move_strategy, "denied move.")
                         break
+
             obj_val_end = float(self.allow_move_strategy.objective_val)
         return labels
 
@@ -395,10 +404,14 @@ class AZPSimulatedAnnealing:
         Each element is a region label specifying to which region the
         corresponding area was assigned to by the last run of a fit-method.
     """
-    def __init__(self, init_temperature=None,
-                 max_iterations=float("inf"), sa_moves_term=10,
+
+    def __init__(self,
+                 init_temperature=None,
+                 max_iterations=float("inf"),
+                 sa_moves_term=10,
                  nonmoving_steps_before_stop=3,
-                 repetitions_before_termination=5, random_state=None):
+                 repetitions_before_termination=5,
+                 random_state=None):
         """
         Parameters
         ----------
@@ -444,8 +457,12 @@ class AZPSimulatedAnnealing:
 
         self.n_regions = None
 
-    def fit_from_geodataframe(self, gdf, attr, n_regions,
-                              contiguity="rook", initial_labels=None,
+    def fit_from_geodataframe(self,
+                              gdf,
+                              attr,
+                              n_regions,
+                              contiguity="rook",
+                              initial_labels=None,
                               cooling_factor=0.85,
                               objective_func=ObjectiveFunctionPairwise()):
         """
@@ -475,12 +492,20 @@ class AZPSimulatedAnnealing:
         """
         w = w_from_gdf(gdf, contiguity)
         attr = array_from_df_col(gdf, attr)
-        self.fit_from_w(w, attr, n_regions, initial_labels,
-                        cooling_factor=cooling_factor,
-                        objective_func=objective_func)
+        self.fit_from_w(
+            w,
+            attr,
+            n_regions,
+            initial_labels,
+            cooling_factor=cooling_factor,
+            objective_func=objective_func)
 
-    def fit_from_dict(self, neighbor_dict, attr, n_regions,
-                      initial_labels=None, cooling_factor=0.85,
+    def fit_from_dict(self,
+                      neighbor_dict,
+                      attr,
+                      n_regions,
+                      initial_labels=None,
+                      cooling_factor=0.85,
                       objective_func=ObjectiveFunctionPairwise()):
         """
         Parameters
@@ -506,15 +531,21 @@ class AZPSimulatedAnnealing:
         attr_arr = array_from_dict_values(attr, sorted_areas)
 
         if initial_labels is not None:
-            initial_labels = array_from_dict_values(initial_labels,
-                                                    sorted_areas,
-                                                    flat_output=True,
-                                                    dtype=np.int32)
+            initial_labels = array_from_dict_values(
+                initial_labels, sorted_areas, flat_output=True, dtype=np.int32)
         self.fit_from_scipy_sparse_matrix(
-                adj, attr_arr, n_regions, initial_labels=initial_labels,
-                cooling_factor=cooling_factor, objective_func=objective_func)
+            adj,
+            attr_arr,
+            n_regions,
+            initial_labels=initial_labels,
+            cooling_factor=cooling_factor,
+            objective_func=objective_func)
 
-    def fit_from_networkx(self, graph, attr, n_regions, initial_labels=None,
+    def fit_from_networkx(self,
+                          graph,
+                          attr,
+                          n_regions,
+                          initial_labels=None,
                           cooling_factor=0.85,
                           objective_func=ObjectiveFunctionPairwise()):
         """
@@ -543,13 +574,22 @@ class AZPSimulatedAnnealing:
         attr = array_from_graph_or_dict(graph, attr)
         if initial_labels is not None:
             initial_labels = array_from_graph_or_dict(graph, initial_labels)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
-                                          cooling_factor=cooling_factor,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            n_regions,
+            initial_labels,
+            cooling_factor=cooling_factor,
+            objective_func=objective_func)
 
     def fit_from_scipy_sparse_matrix(
-            self, adj, attr, n_regions, initial_labels=None,
-            cooling_factor=0.85, objective_func=ObjectiveFunctionPairwise()):
+            self,
+            adj,
+            attr,
+            n_regions,
+            initial_labels=None,
+            cooling_factor=0.85,
+            objective_func=ObjectiveFunctionPairwise()):
         """
         Parameters
         ----------
@@ -578,21 +618,19 @@ class AZPSimulatedAnnealing:
         if attr.ndim == 1:
             attr = attr.reshape(adj.shape[0], -1)
         self.allow_move_strategy = AllowMoveAZPSimulatedAnnealing(
-                init_temperature=self.init_temperature,
-                sa_moves_term=self.sa_moves_term)
+            init_temperature=self.init_temperature,
+            sa_moves_term=self.sa_moves_term)
         self.allow_move_strategy.register_sa_moves_term(self.sa_moves_alert)
         self.allow_move_strategy.register_move_made(self.move_made_alert)
 
-        self.azp = AZP(allow_move_strategy=self.allow_move_strategy,
-                       random_state=self.random_state)
-        # todo: rm print() calls
+        self.azp = AZP(
+            allow_move_strategy=self.allow_move_strategy,
+            random_state=self.random_state)
         # step a
-        # print(("#"*60 + "\n") * 5 + "STEP A")
         t = self.init_temperature
         nonmoving_steps = 0
         # step d: repeat step b and c
         while nonmoving_steps < self.nonmoving_steps_before_stop:
-            # print(("#"*60 + "\n") * 2 + "STEP B")
             it = 0
             self.sa_moves_term_reached = False
             self.allow_move_strategy.reset()
@@ -600,43 +638,34 @@ class AZPSimulatedAnnealing:
             while it < self.maxit and not self.sa_moves_term_reached:
                 it += 1
                 old_sol = initial_labels
-                self.azp.fit_from_scipy_sparse_matrix(adj, attr, n_regions,
-                                                      initial_labels,
-                                                      objective_func)
+                self.azp.fit_from_scipy_sparse_matrix(
+                    adj, attr, n_regions, initial_labels, objective_func)
                 initial_labels = self.azp.labels_
 
-                # print("old_sol", old_sol)
-                # print("new_sol", initial_labels)
                 if old_sol is not None:
-                    # print("EQUAL" if (old_sol == initial_labels).all()
-                    #       else "NOT EQUAL")
+
                     if (old_sol == initial_labels).all():
-                        # print("BREAK")
                         break
-            # print("visited", self.visited)
             # added termination condition (not in Openshaw & Rao (1995))
-            # print(initial_labels)
             if self.visited.count(tuple(initial_labels)) \
                     >= self.reps_before_termination:
-                print("VISITED", initial_labels, "FOR",
-                      self.reps_before_termination,
-                      "TIMES --> TERMINATING.")
                 break
             self.visited.append(tuple(initial_labels))
             # step c
-            # print(("#"*60 + "\n") * 2 + "STEP C")
             t *= cooling_factor
             self.allow_move_strategy.update_temperature(t)
 
             if self.move_made:
-                # print("MOVE MADE")
                 self.move_made = False
             else:
-                # print("NO MOVE MADE")
                 nonmoving_steps += 1
         self.labels_ = initial_labels
 
-    def fit_from_w(self, w, attr, n_regions, initial_labels=None,
+    def fit_from_w(self,
+                   w,
+                   attr,
+                   n_regions,
+                   initial_labels=None,
                    cooling_factor=0.85,
                    objective_func=ObjectiveFunctionPairwise()):
         """
@@ -661,9 +690,13 @@ class AZPSimulatedAnnealing:
             :meth:`fit_from_scipy_sparse_matrix`.
         """
         adj = scipy_sparse_matrix_from_w(w)
-        self.fit_from_scipy_sparse_matrix(adj, attr, n_regions, initial_labels,
-                                          cooling_factor=cooling_factor,
-                                          objective_func=objective_func)
+        self.fit_from_scipy_sparse_matrix(
+            adj,
+            attr,
+            n_regions,
+            initial_labels,
+            cooling_factor=cooling_factor,
+            objective_func=objective_func)
 
     def sa_moves_alert(self):
         self.sa_moves_term_reached = True
@@ -676,6 +709,7 @@ class AZPTabu(AZP, abc.ABC):
     """
     Superclass for tabu variants of the AZP.
     """
+
     def _make_move(self, area, new_region, labels):
         old_region = labels[area]
         make_move(area, new_region, labels)
@@ -698,7 +732,10 @@ class AZPBasicTabu(AZPTabu):
         Each element is a region label specifying to which region the
         corresponding area was assigned to by the last run of a fit-method.
     """
-    def __init__(self, tabu_length=None, repetitions_before_termination=5,
+
+    def __init__(self,
+                 tabu_length=None,
+                 repetitions_before_termination=5,
                  random_state=None):
         """
         Parameters
@@ -750,35 +787,24 @@ class AZPBasicTabu(AZPTabu):
         #  step 2: make a list of the M regions
         labels = initial_clustering
 
-        # todo: rm print-statements
-        # print("Init with: ", initial_clustering)
         visited = []
         stop = False
         while True:
-            # print("visited", visited)
             # added termination condition (not in Openshaw & Rao (1995))
             label_tup = tuple(labels)
             if visited.count(label_tup) >= self.reps_before_termination:
                 stop = True
-                # print("VISITED", label_tup, "FOR",
-                #       self.reps_before_termination_,
-                #       "TIMES --> TERMINATING BEFORE NEXT NON-IMPROVING MOVE")
+
             visited.append(label_tup)
-            # print("=" * 45)
-            # print("obj_value:", obj_val_end)
-            # print(region_list)
-            # print("-" * 35)
+
             # step 1 Find the global best move that is not prohibited or tabu.
-            # print("step 1")
             # find possible moves (globally)
             best_move = None
             best_objval_diff = float("inf")
             for area in range(labels.shape[0]):
                 old_region = labels[area]
                 sub_adj = sub_adj_matrix(
-                            adj,
-                            np.where(labels == old_region)[0],
-                            wo_nodes=area)
+                    adj, np.where(labels == old_region)[0], wo_nodes=area)
                 # moving the area must not destroy spatial contiguity in donor
                 # region and if area is alone in its region, it must stay:
                 if is_connected(sub_adj) and count(labels, old_region) > 1:
@@ -788,35 +814,27 @@ class AZPBasicTabu(AZPTabu):
                             possible_move = Move(area, old_region, new_region)
                             if possible_move not in self.tabu:
                                 objval_diff = self.objective_func.update(
-                                        possible_move.area,
-                                        possible_move.new_region, labels, attr)
+                                    possible_move.area,
+                                    possible_move.new_region, labels, attr)
                                 if objval_diff < best_objval_diff:
                                     best_move = possible_move
                                     best_objval_diff = objval_diff
-            # print("  best move", best_move, "objval_diff", best_objval_diff)
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            print("step 2")
             if best_move is not None and best_objval_diff <= 0:
-                print(labels)
-                print("IMPROVING MOVE")
                 self._make_move(best_move.area, best_move.new_region, labels)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
                 # (termed an aspiration move)
-                print("step 3")
-                print("Tabu:", self.tabu)
                 improving_tabus = [
                     move for move in self.tabu
-                    if labels[move.area] == move.old_region and
-                    self.objective_func.update(move.area, move.new_region,
-                                               labels, attr) < 0
+                    if labels[move.area] == move.old_region
+                    and self.objective_func.update(move.area, move.new_region,
+                                                   labels, attr) < 0
                 ]
-                print(labels)
                 if improving_tabus:
                     aspiration_move = random_element_from(improving_tabus)
-                    # print("ASPIRATION MOVE")
                     self._make_move(aspiration_move.area,
                                     aspiration_move.new_region, labels)
                 else:
@@ -824,8 +842,6 @@ class AZPBasicTabu(AZPTabu):
                     # move, then make the best move even if it is nonimproving
                     # (that is, results in a worse value of the objective
                     # function).
-                    print("step 4")
-                    print("No improving, no aspiration ==> make the best move")
                     if stop:
                         break
                     if best_move is not None:
@@ -844,6 +860,7 @@ class AZPReactiveTabu(AZPTabu):
         Each element is a region label specifying to which region the
         corresponding area was assigned to by the last run of a fit-method.
     """
+
     def __init__(self, max_iterations, k1, k2, random_state=None):
         """
         Parameters
@@ -905,36 +922,27 @@ class AZPReactiveTabu(AZPTabu):
         if len(distinct_regions) == 1:
             return initial_labels
 
-
         #  step 2: make a list of the M regions
         labels = initial_labels
 
-        # todo: rm print-statements
-        print("Init with: ", initial_labels)
         it_since_tabu_len_changed = 0
         obj_val_start = float("inf")
         # step 12: Repeat steps 3-11 until either no further improvements are
         # made or a maximum number of iterations are exceeded.
         for it in range(self.maxit):
-            print("=" * 45)
             obj_val_end = self.objective_func(labels, attr)
-            print("obj_value:", obj_val_end)
             if not obj_val_end < obj_val_start:
                 break  # step 12
             obj_val_start = obj_val_end
 
             it_since_tabu_len_changed += 1
-            print("-" * 35)
             # step 3: Define the list of all possible moves that are not tabu
             # and retain regional connectivity.
-            print("step 3")
             possible_moves = []
             for area in range(labels.shape[0]):
                 old_region = labels[area]
                 sub_adj = sub_adj_matrix(
-                            adj,
-                            np.where(labels == old_region)[0],
-                            wo_nodes=area)
+                    adj, np.where(labels == old_region)[0], wo_nodes=area)
                 # moving the area must not destroy spatial contiguity in donor
                 # region and if area is alone in its region, it must stay:
                 if is_connected(sub_adj) and count(labels, old_region) > 1:
@@ -945,24 +953,20 @@ class AZPReactiveTabu(AZPTabu):
                             if possible_move not in self.tabu:
                                 possible_moves.append(possible_move)
             # step 4: Find the best nontabu move.
-            print("step 4")
             best_move = None
             best_move_index = None
             best_objval_diff = float("inf")
             for i, move in enumerate(possible_moves):
                 obj_val_diff = self.objective_func.update(
-                        move.area, move.new_region, labels, attr)
+                    move.area, move.new_region, labels, attr)
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
-            # print("  best move:", best_move)
             # step 5: Make the move. Update the tabu status.
-            # print("step 5: make", best_move)
             self._make_move(best_move.area, best_move.new_region, labels)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
-            print("step 6")
             # Sets can't be permuted so we convert our list to a set:
             label_tup = tuple(labels)
             if label_tup in self.visited:
@@ -970,20 +974,16 @@ class AZPReactiveTabu(AZPTabu):
                 # times already and this cyclical behavior has been found on
                 # at least K2 other occasions (involving other zones) then go
                 # to step 11.
-                print("step 7")
-                print("  labels", labels)
-                print("  self.visited:", self.visited)
                 times_visited = self.visited.count(label_tup)
                 cycle = list(reversed(self.visited))
                 cycle = cycle[:cycle.index(label_tup) + 1]
                 cycle = list(reversed(cycle))
-                print("  cycle:", cycle)
                 it_until_repetition = len(cycle)
                 if times_visited > self.k1:
                     times_cycle_found = 0
                     if self.k2 > 0:
                         for i in range(len(self.visited) - len(cycle)):
-                            if self.visited[i:i+len(cycle)] == cycle:
+                            if self.visited[i:i + len(cycle)] == cycle:
                                 times_cycle_found += 1
                                 if times_cycle_found >= self.k2:
                                     break
@@ -992,41 +992,36 @@ class AZPReactiveTabu(AZPTabu):
                         # random moves, P = 1 + self.avg_it_until_rep/2, and
                         # update tabu to preclude a return to the previous
                         # state.
-                        print("step 11")
                         # we save the labels such that we can access it if
                         # this step yields a poor solution.
                         last_step = (11, tuple(labels))
                         self.visited = []
-                        p = math.floor(1 + self.avg_it_until_rep/2)
+                        p = math.floor(1 + self.avg_it_until_rep / 2)
                         possible_moves.pop(best_move_index)
                         for _ in range(p):
                             move = possible_moves.pop(
-                                    random.randrange(len(possible_moves)))
-                            self._make_move(move.area, move.new_region,
-                                            labels)
+                                random.randrange(len(possible_moves)))
+                            self._make_move(move.area, move.new_region, labels)
                         continue
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the
                     # prohibition period R to 1.1*R.
-                    print("step 8")
                     self.rep_counter += 1
                     avg_it = self.avg_it_until_rep
                     self.avg_it_until_rep = 1 / self.rep_counter * \
                         ((self.rep_counter-1)*avg_it + it_until_repetition)
 
-                    self.tabu = deque(self.tabu, 1.1*self.tabu.maxlen)
+                    self.tabu = deque(self.tabu, 1.1 * self.tabu.maxlen)
                     # step 9: If the number of iterations since R was last
                     # changed exceeds self.avg_it_until_rep, then decrease R to
                     # max(0.9*R, 1).
-                    print("step 9")
                     if it_since_tabu_len_changed > self.avg_it_until_rep:
-                        new_tabu_len = max([0.9*self.tabu.maxlen, 1])
+                        new_tabu_len = max([0.9 * self.tabu.maxlen, 1])
                         new_tabu_len = math.floor(new_tabu_len)
                         self.tabu = deque(self.tabu, new_tabu_len)
                     it_since_tabu_len_changed = 0  # step 8
 
             # step 10: Save the zoning system and go to step 12.
-            print("step 10")
             self.visited.append(tuple(labels))
             last_step = 10
 

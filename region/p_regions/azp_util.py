@@ -63,14 +63,10 @@ class AllowMoveAZP(AllowMoveStrategy):
         diff = self.objective_func.update(moving_area, new_region, labels,
                                           self.attr)
         if diff <= 0:
-            # print("  allowing move of {} to {}".format(moving_area, new_region))
-            # print("  because diff {} <= 0".format(diff))
             self.objective_val += diff
             return True
         else:
-            # print("  disallowing move of {} to {}".format(moving_area,
-            #                                               new_region))
-            # print("  because diff {} > 0".format(diff))
+
             return False
 
 
@@ -83,7 +79,6 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
                 sa_moves_term < 1:
             raise ValueError("The sa_moves_term argument must be a positive "
                              "integer.")
-        print("sa_moves_term:", sa_moves_term)
         self.sa_moves_term = sa_moves_term
         self.sa = 0  # number of SA-moves
         super().__init__()
@@ -92,15 +87,11 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
         diff = self.objective_func.update(moving_area, new_region, labels,
                                           self.attr)
         if diff <= 0:
-            # print("  allowing move of {} to {}".format(moving_area, new_region))
-            # print("  because diff {} <= 0".format(diff))
             self.objective_val += diff
             self.notify_move_made()
             return True
         else:
-            # print("  disallowing move of {} to {}".format(moving_area,
-            #                                               new_region))
-            # print("  because diff {} > 0".format(diff))
+
             prob = math.exp(-diff / self.t)
             move_allowed = random.random() < prob
             if move_allowed:
@@ -108,10 +99,8 @@ class AllowMoveAZPSimulatedAnnealing(AllowMoveStrategy):
                 self.sa += 1
                 if self.sa >= self.sa_moves_term:
                     self.notify_min_sa_moves()
-                print("move {} to {} anyway!".format(moving_area, new_region))
                 self.objective_val += diff
                 return True
-            print("not moving {} to {}".format(moving_area, new_region))
             return False
 
     def register_sa_moves_term(self, observer_func):
@@ -162,6 +151,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     the recipient region is necessary in case there is an area with a negative
     spatially extensive attribute.
     """
+
     def __init__(self, spatially_extensive_attr, threshold,
                  decorated_strategy):
         """
@@ -186,7 +176,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
     def start_new_component(self, initial_labels, attr, objective_func,
                             comp_idx):
         self.spatially_extensive_attr = self.spatially_extensive_attr_all[
-                comp_idx]
+            comp_idx]
         super().start_new_component(initial_labels, attr, objective_func,
                                     comp_idx)
         self._decorated_strategy.start_new_component(initial_labels, attr,
@@ -201,9 +191,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
             donor_sum = sum(sp_ext[donor_idx]) - sp_ext[moving_area]
             threshold_reached_donor = (donor_sum >= self.threshold).all()
             if not threshold_reached_donor:
-                print("Region", donor_idx, "must not lose", moving_area)
                 return False
-            print("Region", donor_idx, "may donate", moving_area)
 
         elif (sp_ext[moving_area]).any() < 0:
             recipient_idx = np.where(labels == new_region)[0]
@@ -211,7 +199,6 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
             threshold_reached_recipient = (recipient_sum >=
                                            self.threshold).all()
             if not threshold_reached_recipient:
-                print("Area", moving_area, "with spat_ext_attr<0 may not move")
                 return False
 
         return self._decorated_strategy(moving_area, new_region, labels)
