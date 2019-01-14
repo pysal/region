@@ -72,8 +72,7 @@ if __name__ == "__main__":
             'pulp',
             'pytest',
             'scipy',
-            'sklearn',
-            'pysal'
+            'sklearn'
         ],
 
         python_requires='~=3.3',  # ~=3.3 means >=3.3 and <4
