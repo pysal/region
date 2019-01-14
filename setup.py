@@ -15,6 +15,7 @@ PATCH = 5
 VERSION = "{}.{}.{}".format(MAJOR, MINOR, PATCH)
 
 if __name__ == "__main__":
+    
     # Get the long description from the README file
     with open(path.join(here, 'README.rst'), encoding='utf-8') as f:
         long_description = f.read()
@@ -35,14 +36,12 @@ if __name__ == "__main__":
                        'Intended Audience :: Education',
                        'Topic :: Scientific/Engineering',
                        'Topic :: Scientific/Engineering :: GIS',
-                       # Pick your license as you wish (should match "license" above)
                        'License :: OSI Approved :: BSD License',
                        'Programming Language :: Python :: 3',
                        'Programming Language :: Python :: 3.5',
                        'Programming Language :: Python :: 3.6'],
           keywords='regionalization spatial clustering',
           packages=find_packages(exclude=['contrib', 'doc', 'test*']),
-          # See: https://packaging.python.org/en/latest/requirements.html
           install_requires=['geopandas',
                             'libpysal',
                             'networkx<2.0.0',
@@ -51,5 +50,4 @@ if __name__ == "__main__":
                             'pytest',
                             'scipy',
                             'sklearn'],
-          python_requires='~=3.3'  # ~=3.3 means >=3.3 and <4
-    )
+          python_requires='>3.4')
