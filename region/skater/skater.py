@@ -264,12 +264,15 @@ class Spanning_Forest(object):
         
     
 if __name__ == "__main__":
-    import pysal as ps
+    
+    from libpysal import examples, weights
     import geopandas as gpd
-    df = gpd.read_file(ps.examples.get_path('NAT.shp'))
-    data = df[df.filter(like='90').columns.tolist() + df.filter(like='89').columns.tolist()].values
+    
+    df = gpd.read_file(examples.get_path('NAT.shp'))
+    data = df[df.filter(like='90').columns.tolist()\
+           + df.filter(like='89').columns.tolist()].values
     data_c = (data - data.mean(axis=0)) / data.std(axis=0)
-    W = ps.weights.Queen.from_dataframe(df)
+    W = weights.Queen.from_dataframe(df)
     result = Spanning_Forest().fit(10, W, data_c, quorum=100)
     
     will_fail = Spanning_Forest().fit(10,W,data_c, quorum=500)
