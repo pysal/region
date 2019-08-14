@@ -154,6 +154,7 @@ class AllowMoveAZPMaxPRegions(AllowMoveStrategy):
 
     def __init__(self, spatially_extensive_attr, threshold,
                  decorated_strategy):
+        print('Ensuring threshold in each region.')
         """
 
         Parameters
