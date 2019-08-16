@@ -12,7 +12,7 @@ from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
 from region.util import array_from_df_col, array_from_dict_values, \
-    assert_feasible, copy_func, count, generate_initial_sol, \
+    assert_feasible, boolean_assert_feasible, copy_func, count, generate_initial_sol, \
     make_move, Move, pop_randomly_from, random_element_from,\
     scipy_sparse_matrix_from_w, separate_components, w_from_gdf,\
     array_from_graph_or_dict, scipy_sparse_matrix_from_dict

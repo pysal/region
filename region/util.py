@@ -746,6 +746,25 @@ def assert_feasible(solution, adj, n_regions=None):
             raise ValueError("Region {} is not spatially "
                              "contiguous.".format(region_label))
 
+
+def boolean_assert_feasible(solution, adj, n_regions=None):
+    """
+    Return boolean version of assert_feasible
+    """
+    
+    resp = []
+    if n_regions is not None:
+        if len(set(solution)) != n_regions:
+            raise ValueError("The number of regions is {} but "
+                             "should be {}".format(len(solution), n_regions))
+
+    for region_label in set(solution):
+        aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
+        resp.append(is_connected(aux))
+
+    final_resp = all(resp)
+    return final_resp
+
 def all_elements_equal(array):
     return np.max(array) == np.min(array)
 
