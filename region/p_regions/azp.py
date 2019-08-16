@@ -846,6 +846,9 @@ class AZPBasicTabu(AZPTabu):
                     if self.allow_move_strategy(aspiration_move.area, aspiration_move.new_region, labels):
                     
                         self._make_move(aspiration_move.area, aspiration_move.new_region, labels, adj)
+                        
+                if stop:
+                        break
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
