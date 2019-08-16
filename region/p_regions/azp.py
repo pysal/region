@@ -713,7 +713,7 @@ class AZPTabu(AZP, abc.ABC):
     def _make_move(self, area, new_region, labels, adj):
         old_region = labels[area]
         make_move(area, new_region, labels)
-        if not boolean_assert_feasible(labels, adj):
+        if not boolean_assert_feasible(labels, adj): # If the move breaks the contiguity, revert it!
             make_move(area, old_region, labels) # Revert Move!
             reverse_move = Move(area, new_region, old_region)
             self.tabu.append(reverse_move)
