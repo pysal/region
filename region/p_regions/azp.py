@@ -963,8 +963,9 @@ class AZPReactiveTabu(AZPTabu):
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
-            # step 5: Make the move. Update the tabu status.
-            self._make_move(best_move.area, best_move.new_region, labels)
+            # step 5: Make the move if possible. Update the tabu status.
+            if self.allow_move_strategy(best_move.area, best_move.new_region, labels):
+                self._make_move(best_move.area, best_move.new_region, labels)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
@@ -1000,9 +1001,9 @@ class AZPReactiveTabu(AZPTabu):
                         p = math.floor(1 + self.avg_it_until_rep / 2)
                         possible_moves.pop(best_move_index)
                         for _ in range(p):
-                            move = possible_moves.pop(
-                                random.randrange(len(possible_moves)))
-                            self._make_move(move.area, move.new_region, labels)
+                            move = possible_moves.pop(random.randrange(len(possible_moves)))
+                            if self.allow_move_strategy(move.area, move.new_region, labels):
+                                self._make_move(move.area, move.new_region, labels)
                         continue
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the
