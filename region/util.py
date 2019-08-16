@@ -12,6 +12,8 @@ import networkx as nx
 from libpysal import weights
 import pulp
 
+from region.csgraph_utils import sub_adj_matrix, is_connected
+
 Move = collections.namedtuple("move", "area old_region new_region")
 "A named tuple representing a move from `old_region` to `new_region`."  # sphinx
 
@@ -735,14 +737,14 @@ def assert_feasible(solution, adj, n_regions=None):
         if len(set(solution)) != n_regions:
             raise ValueError("The number of regions is {} but "
                              "should be {}".format(len(solution), n_regions))
+
     for region_label in set(solution):
-        _, comp_labels = csg.connected_components(adj)
-        # check whether equal region_label implies equal comp_label
-        comp_labels_in_region = comp_labels[solution == region_label]
-        if not all_elements_equal(comp_labels_in_region):
+        aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
+        
+        # check right contiguity
+        if not is_connected(aux):
             raise ValueError("Region {} is not spatially "
                              "contiguous.".format(region_label))
-
 
 def all_elements_equal(array):
     return np.max(array) == np.min(array)
