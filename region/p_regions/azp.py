@@ -821,7 +821,7 @@ class AZPBasicTabu(AZPTabu):
                                     best_objval_diff = objval_diff
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            if best_move is not None and best_objval_diff <= 0:
+            if best_move is not None and best_objval_diff <= 0 and self.allow_move_strategy(best_move.area, best_move.new_region, labels):
                 self._make_move(best_move.area, best_move.new_region, labels)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
@@ -835,8 +835,10 @@ class AZPBasicTabu(AZPTabu):
                 ]
                 if improving_tabus:
                     aspiration_move = random_element_from(improving_tabus)
-                    self._make_move(aspiration_move.area,
-                                    aspiration_move.new_region, labels)
+                    
+                    if self.allow_move_strategy(aspiration_move.area, aspiration_move.new_region, labels):
+                    
+                        self._make_move(aspiration_move.area, aspiration_move.new_region, labels)
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
@@ -844,9 +846,8 @@ class AZPBasicTabu(AZPTabu):
                     # function).
                     if stop:
                         break
-                    if best_move is not None:
-                        self._make_move(best_move.area, best_move.new_region,
-                                        labels)
+                    if best_move is not None and self.allow_move_strategy(best_move.area, best_move.new_region, labels):
+                        self._make_move(best_move.area, best_move.new_region, labels)
         return labels
 
 
