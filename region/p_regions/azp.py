@@ -12,7 +12,7 @@ from region.p_regions.azp_util import AllowMoveStrategy, \
                                             AllowMoveAZP,\
                                             AllowMoveAZPSimulatedAnnealing
 from region.util import array_from_df_col, array_from_dict_values, \
-    assert_feasible, copy_func, count, generate_initial_sol, \
+    assert_feasible, boolean_assert_feasible, copy_func, count, generate_initial_sol, \
     make_move, Move, pop_randomly_from, random_element_from,\
     scipy_sparse_matrix_from_w, separate_components, w_from_gdf,\
     array_from_graph_or_dict, scipy_sparse_matrix_from_dict
@@ -710,12 +710,19 @@ class AZPTabu(AZP, abc.ABC):
     Superclass for tabu variants of the AZP.
     """
 
-    def _make_move(self, area, new_region, labels):
+    def _make_move(self, area, new_region, labels, adj):
         old_region = labels[area]
         make_move(area, new_region, labels)
-        # step 5: Tabu the reverse move for R iterations.
-        reverse_move = Move(area, new_region, old_region)
-        self.tabu.append(reverse_move)
+        if not boolean_assert_feasible(labels, adj): # If the move breaks the contiguity, revert it!
+            make_move(area, old_region, labels) # Revert Move!
+            reverse_move = Move(area, new_region, old_region)
+            self.tabu.append(reverse_move)
+            return False
+        else:
+            # step 5: Tabu the reverse move for R iterations.
+            reverse_move = Move(area, new_region, old_region)
+            self.tabu.append(reverse_move)
+            return True
 
     def reset_tabu(self, tabu_len=None):
         tabu_len = self.tabu.maxlen if tabu_len is None else tabu_len
@@ -821,8 +828,8 @@ class AZPBasicTabu(AZPTabu):
                                     best_objval_diff = objval_diff
             # step 2: Make this move if it is an improvement or equivalet in
             # value.
-            if best_move is not None and best_objval_diff <= 0:
-                self._make_move(best_move.area, best_move.new_region, labels)
+            if best_move is not None and best_objval_diff <= 0 and self.allow_move_strategy(best_move.area, best_move.new_region, labels):
+                self._make_move(best_move.area, best_move.new_region, labels, adj)
             else:
                 # step 3: if no improving move can be made, then see if a tabu
                 # move can be made which improves on the current local best
@@ -835,8 +842,13 @@ class AZPBasicTabu(AZPTabu):
                 ]
                 if improving_tabus:
                     aspiration_move = random_element_from(improving_tabus)
-                    self._make_move(aspiration_move.area,
-                                    aspiration_move.new_region, labels)
+                    
+                    if self.allow_move_strategy(aspiration_move.area, aspiration_move.new_region, labels):
+                    
+                        self._make_move(aspiration_move.area, aspiration_move.new_region, labels, adj)
+                        
+                if stop:
+                        break
                 else:
                     # step 4: If there is no improving move and no aspirational
                     # move, then make the best move even if it is nonimproving
@@ -844,9 +856,8 @@ class AZPBasicTabu(AZPTabu):
                     # function).
                     if stop:
                         break
-                    if best_move is not None:
-                        self._make_move(best_move.area, best_move.new_region,
-                                        labels)
+                    if best_move is not None and self.allow_move_strategy(best_move.area, best_move.new_region, labels):
+                        self._make_move(best_move.area, best_move.new_region, labels, adj)
         return labels
 
 
@@ -962,8 +973,9 @@ class AZPReactiveTabu(AZPTabu):
                 if obj_val_diff < best_objval_diff:
                     best_move_index, best_move = i, move
                     best_objval_diff = obj_val_diff
-            # step 5: Make the move. Update the tabu status.
-            self._make_move(best_move.area, best_move.new_region, labels)
+            # step 5: Make the move if possible. Update the tabu status.
+            if self.allow_move_strategy(best_move.area, best_move.new_region, labels):
+                self._make_move(best_move.area, best_move.new_region, labels, adj)
             # step 6: Look up the current zoning system in a list of all zoning
             # systems visited so far during the search. If not found then go
             # to step 10.
@@ -999,9 +1011,9 @@ class AZPReactiveTabu(AZPTabu):
                         p = math.floor(1 + self.avg_it_until_rep / 2)
                         possible_moves.pop(best_move_index)
                         for _ in range(p):
-                            move = possible_moves.pop(
-                                random.randrange(len(possible_moves)))
-                            self._make_move(move.area, move.new_region, labels)
+                            move = possible_moves.pop(random.randrange(len(possible_moves)))
+                            if self.allow_move_strategy(move.area, move.new_region, labels):
+                                self._make_move(move.area, move.new_region, labels, adj)
                         continue
                     # step 8: Update a moving average of the repetition
                     # interval self.avg_it_until_rep, and increase the
