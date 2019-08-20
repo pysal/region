@@ -4,10 +4,20 @@ from region.p_regions.azp import AZPBasicTabu
 from region.tests.util import region_list_from_array, compare_region_lists
 from region.util import dataframe_to_dict
 
-from region.p_regions.tests.data import adj, neighbors_dict, gdf, graph, w, \
-                  attr, attr_dict, attr_str, double_attr_str, \
-                  double_attr, double_attr_dict, \
-                  optimal_clustering
+from region.p_regions.tests.data import (
+    adj,
+    neighbors_dict,
+    gdf,
+    graph,
+    w,
+    attr,
+    attr_dict,
+    attr_str,
+    double_attr_str,
+    double_attr,
+    double_attr_dict,
+    optimal_clustering,
+)
 
 
 # ### TESTS WITH SCALAR attr ##################################################
@@ -47,7 +57,7 @@ def test_graph_dict_basic():
 
 # ... with strings as attr and spatially_extensive_attr
 def test_graph_str_basic():
-    nx.set_node_attributes(graph, attr_str, attr_dict)
+    nx.set_node_attributes(graph, attr_dict, attr_str)
     cluster_object = AZPBasicTabu(random_state=0)
     cluster_object.fit_from_networkx(graph, attr_str, n_regions=2)
     result = region_list_from_array(cluster_object.labels_)
@@ -98,7 +108,7 @@ def test_graph_dict_multi_attr():
 
 # ... with strings as attr and spatially_extensive_attr
 def test_graph_str_multi_attr():
-    nx.set_node_attributes(graph, attr_str, attr_dict)
+    nx.set_node_attributes(graph, attr_dict, attr_str)
     cluster_object = AZPBasicTabu(random_state=0)
     cluster_object.fit_from_networkx(graph, double_attr_str, n_regions=2)
     result = region_list_from_array(cluster_object.labels_)
