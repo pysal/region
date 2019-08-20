@@ -51,7 +51,7 @@ def test_assert_feasible__contiguity():
         # ... but assigned to the same region --> not feasible
         labels = np.array([0, 0])
         util.assert_feasible(labels, adj)
-    assert "not spatially contiguous" in str(exc_info)
+    assert "not spatially contiguous" in str(exc_info.value)
 
 
 def test_assert_feasible__number_of_regions():
@@ -62,7 +62,7 @@ def test_assert_feasible__number_of_regions():
         # but this is not feasible under the condition n_regions = 2
         n_regions = 2
         util.assert_feasible(labels, adj, n_regions=n_regions)
-    assert "The number of regions is" in str(exc_info)
+    assert "The number of regions is" in str(exc_info.value)
 
 
 def test_random_element_from():
