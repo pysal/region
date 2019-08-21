@@ -18,8 +18,7 @@ Move = collections.namedtuple("move", "area old_region new_region")
 "A named tuple representing a move from `old_region` to `new_region`."  # sphinx
 
 
-def array_from_dict_values(dct, sorted_keys=None, flat_output=False,
-                           dtype=np.float):
+def array_from_dict_values(dct, sorted_keys=None, flat_output=False, dtype=np.float):
     """
     Return values of the dictionary passed as `dct` argument as an numpy array.
     The values in the returned array are sorted by the keys of `dct`.
@@ -115,8 +114,7 @@ def scipy_sparse_matrix_from_dict(neighbors):
     True
     """
     n_areas = len(neighbors)
-    name_to_int = {area_name: i
-                   for i, area_name in enumerate(sorted(neighbors))}
+    name_to_int = {area_name: i for i, area_name in enumerate(sorted(neighbors))}
     adj = dok_matrix((n_areas, n_areas))
     for i in neighbors:
         for j in neighbors[i]:
@@ -185,7 +183,7 @@ def dict_from_graph_attr(graph, attr, array_values=False):
     ...          (3, 4), (4,5)]           # 3 | 4 | 5
     >>> graph = nx.Graph(edges)
     >>> data_dict = {node: 10*node for node in graph}
-    >>> nx.set_node_attributes(graph, "test_data", data_dict)
+    >>> nx.set_node_attributes(graph, data_dict, "test_data")
     >>> desired = {key: [value] for key, value in data_dict.items()}
     >>> dict_from_graph_attr(graph, "test_data") == desired
     True
@@ -231,7 +229,7 @@ def array_from_graph(graph, attr):
     ...          (3, 4), (4,5)]           # 3 | 4 | 5
     >>> graph = nx.Graph(edges)
     >>> data_dict = {node: 10*node for node in graph}
-    >>> nx.set_node_attributes(graph, "test_data", data_dict)
+    >>> nx.set_node_attributes(graph, data_dict, "test_data")
     >>> desired = np.array([[0],
     ...                     [10],
     ...                     [20],
@@ -251,13 +249,15 @@ def array_from_graph(graph, attr):
 
 
 def array_from_graph_or_dict(graph, attr):
-        if isinstance(attr, (str, collections.Iterable)):
-            return array_from_graph(graph, attr)
-        elif isinstance(attr, collections.Mapping):
-            return array_from_dict_values(attr)
-        else:
-            raise ValueError("The `attr` argument must be a string, a list of "
-                             "strings or a dictionary.")
+    if isinstance(attr, (str, collections.Iterable)):
+        return array_from_graph(graph, attr)
+    elif isinstance(attr, collections.Mapping):
+        return array_from_dict_values(attr)
+    else:
+        raise ValueError(
+            "The `attr` argument must be a string, a list of "
+            "strings or a dictionary."
+        )
 
 
 def array_from_region_list(region_list):
@@ -322,8 +322,10 @@ def array_from_df_col(df, attr):
     ...                                                   [3, 9]])).all()
     True
     """
-    value_error = ValueError("The attr argument has to be of one of the "
-                             "following types: str or a sequence of strings.")
+    value_error = ValueError(
+        "The attr argument has to be of one of the "
+        "following types: str or a sequence of strings."
+    )
     if isinstance(attr, str):
         attr = [attr]
     elif isinstance(attr, collections.Sequence):
@@ -350,11 +352,12 @@ def w_from_gdf(gdf, contiguity):
         The contiguity information contained in the `gdf` argument in the form
         of a W object.
     """
-    if not isinstance(contiguity, str) or \
-            contiguity.lower() not in ["rook", "queen"]:
-        raise ValueError("The contiguity argument must be either None "
-                         "or one of the following strings: "
-                         '"rook" or"queen".')
+    if not isinstance(contiguity, str) or contiguity.lower() not in ["rook", "queen"]:
+        raise ValueError(
+            "The contiguity argument must be either None "
+            "or one of the following strings: "
+            '"rook" or"queen".'
+        )
     if contiguity.lower() == "rook":
         cweights = weights.Rook.from_dataframe(gdf)
     else:  # contiguity.lower() == "queen"
@@ -437,8 +440,7 @@ def find_sublist_containing(el, lst, index=False):
     for idx, sublst in enumerate(lst):
         if el in sublst:
             return idx if index else sublst
-    raise LookupError(
-            "{} not found in any of the sublists of {}".format(el, lst))
+    raise LookupError("{} not found in any of the sublists of {}".format(el, lst))
 
 
 def get_metric_function(metric=None):
@@ -483,17 +485,23 @@ def get_metric_function(metric=None):
         except KeyError:
             raise ValueError(
                 "{} is not a known metric. Please use rather one of the "
-                "following metrics: {}".format(metric,
-                                               tuple(name for name in
-                                                     distance_metrics().keys()
-                                                     if name != "precomputed"))
+                "following metrics: {}".format(
+                    metric,
+                    tuple(
+                        name
+                        for name in distance_metrics().keys()
+                        if name != "precomputed"
+                    ),
+                )
             )
     elif callable(metric):
         return metric
     else:
-        raise ValueError("A {} was passed as `metric` argument. "
-                         "Please pass a string or a function "
-                         "instead.".format(type(metric)))
+        raise ValueError(
+            "A {} was passed as `metric` argument. "
+            "Please pass a string or a function "
+            "instead.".format(type(metric))
+        )
 
 
 class MissingMetric(RuntimeError):
@@ -598,20 +606,23 @@ def generate_initial_sol(adj, n_regions):
     if n_areas == 0:
         raise ValueError("There must be at least one area.")
     if n_areas < n_regions:
-        raise ValueError("The number of regions ({}) must be "
-                         "less than or equal to the number of areas "
-                         "({}).".format(n_regions, n_areas))
+        raise ValueError(
+            "The number of regions ({}) must be "
+            "less than or equal to the number of areas "
+            "({}).".format(n_regions, n_areas)
+        )
     if n_regions == 1:
         yield {area: 0 for area in range(n_areas)}
         return
 
     n_comps, comp_labels = csg.connected_components(adj)
     if n_comps > n_regions:
-            raise ValueError("The number of regions ({}) must not be "
-                             "less than the number of connected components "
-                             "({}).".format(n_regions, n_comps))
-    n_regions_per_comp = distribute_regions_among_components(comp_labels,
-                                                             n_regions)
+        raise ValueError(
+            "The number of regions ({}) must not be "
+            "less than the number of connected components "
+            "({}).".format(n_regions, n_comps)
+        )
+    n_regions_per_comp = distribute_regions_among_components(comp_labels, n_regions)
 
     print("n_regions_per_comp", n_regions_per_comp)
     regions_built = 0
@@ -622,8 +633,10 @@ def generate_initial_sol(adj, n_regions):
         in_comp = comp_labels == comp_label
         comp_adj = adj[in_comp]
         comp_adj = comp_adj[:, in_comp]
-        region_labels_comp = _randomly_divide_connected_graph(
-                comp_adj, n_regions_in_comp) + regions_built
+        region_labels_comp = (
+            _randomly_divide_connected_graph(comp_adj, n_regions_in_comp)
+            + regions_built
+        )
         regions_built += n_regions_in_comp
         print("Regions in comp:", set(region_labels_comp))
         region_labels[in_comp] = region_labels_comp
@@ -665,8 +678,10 @@ def _randomly_divide_connected_graph(adj, n_regions):
         raise ValueError(msg)
     n_areas = adj.shape[0]
     if not n_regions <= n_areas:
-        msg = "n_regions is {} but must less than or equal to " + \
-              "the number of nodes which is {}".format(n_regions, n_areas)
+        msg = (
+            "n_regions is {} but must less than or equal to "
+            + "the number of nodes which is {}".format(n_regions, n_areas)
+        )
         raise ValueError(msg)
     mst = csg.minimum_spanning_tree(adj)
     for _ in range(n_regions - 1):
@@ -706,9 +721,13 @@ def copy_func(f):
     g : function
         Copy of `f`.
     """
-    g = types.FunctionType(f.__code__, f.__globals__, name=f.__name__,
-                           argdefs=f.__defaults__,
-                           closure=f.__closure__)
+    g = types.FunctionType(
+        f.__code__,
+        f.__globals__,
+        name=f.__name__,
+        argdefs=f.__defaults__,
+        closure=f.__closure__,
+    )
     g = functools.update_wrapper(g, f)
     g.__kwdefaults__ = f.__kwdefaults__
     return g
@@ -735,28 +754,33 @@ def assert_feasible(solution, adj, n_regions=None):
     """
     if n_regions is not None:
         if len(set(solution)) != n_regions:
-            raise ValueError("The number of regions is {} but "
-                             "should be {}".format(len(solution), n_regions))
+            raise ValueError(
+                "The number of regions is {} but "
+                "should be {}".format(len(solution), n_regions)
+            )
 
     for region_label in set(solution):
         aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
-        
+
         # check right contiguity
         if not is_connected(aux):
-            raise ValueError("Region {} is not spatially "
-                             "contiguous.".format(region_label))
+            raise ValueError(
+                "Region {} is not spatially " "contiguous.".format(region_label)
+            )
 
 
 def boolean_assert_feasible(solution, adj, n_regions=None):
     """
     Return boolean version of assert_feasible
     """
-    
+
     resp = []
     if n_regions is not None:
         if len(set(solution)) != n_regions:
-            raise ValueError("The number of regions is {} but "
-                             "should be {}".format(len(solution), n_regions))
+            raise ValueError(
+                "The number of regions is {} but "
+                "should be {}".format(len(solution), n_regions)
+            )
 
     for region_label in set(solution):
         aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
@@ -764,6 +788,7 @@ def boolean_assert_feasible(solution, adj, n_regions=None):
 
     final_resp = all(resp)
     return final_resp
+
 
 def all_elements_equal(array):
     return np.max(array) == np.min(array)
@@ -864,16 +889,24 @@ def count(arr, el):
 
 
 def check_solver(solver):
-    if not isinstance(solver, str) \
-            or solver.lower() not in ["cbc", "cplex", "glpk", "gurobi"]:
-        raise ValueError("The solver argument must be one of the following"
-                         ' strings: "cbc", "cplex", "glpk", or "gurobi".')
+    if not isinstance(solver, str) or solver.lower() not in [
+        "cbc",
+        "cplex",
+        "glpk",
+        "gurobi",
+    ]:
+        raise ValueError(
+            "The solver argument must be one of the following"
+            ' strings: "cbc", "cplex", "glpk", or "gurobi".'
+        )
 
 
 def get_solver_instance(solver_string):
-    solver = {"cbc": pulp.solvers.PULP_CBC_CMD,
-              "cplex": pulp.solvers.CPLEX,
-              "glpk": pulp.solvers.GLPK,
-              "gurobi": pulp.solvers.GUROBI}[solver_string.lower()]
+    solver = {
+        "cbc": pulp.solvers.PULP_CBC_CMD,
+        "cplex": pulp.solvers.CPLEX,
+        "glpk": pulp.solvers.GLPK,
+        "gurobi": pulp.solvers.GUROBI,
+    }[solver_string.lower()]
     solver_instance = solver()
     return solver_instance
