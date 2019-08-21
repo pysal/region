@@ -746,7 +746,7 @@ def assert_feasible(solution, adj, n_regions=None):
     #                         "contiguous.".format(region_label))
             
     for region_label in set(solution):
-        print('Beggining loop of assert_feasible!')
+        print('Beginning loop of assert_feasible!')
         aux = sub_adj_matrix(adj, np.where(solution == region_label)[0])
         
         # check whether equal region_label implies equal comp_label
