@@ -9,7 +9,7 @@ import os
 
 TESTDIR = os.path.dirname(os.path.abspath(__file__))
 
-
+south = examples.example_manager.load('South')
 df = geotable.read_files(examples.get_path('south.shp'))
 data = df[df.filter(like='90').columns.tolist()
                + df.filter(like='89').columns.tolist()].values
