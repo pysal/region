@@ -6,7 +6,7 @@ curr_dir = path.abspath(path.dirname(__file__))
 
 MAJOR = 0
 MINOR = 2
-PATCH = 0
+PATCH = 1
 VERSION = "{}.{}.{}".format(MAJOR, MINOR, PATCH)
 
 if __name__ == "__main__":
