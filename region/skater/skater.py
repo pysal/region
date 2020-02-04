@@ -115,8 +115,8 @@ class Spanning_Forest(object):
                                  " clusters in the remaining field.")
         if trace:
             self._trace.append((current_labels, deletion(np.nan, np.nan, np.inf)))
-        if super_verbose:
-            print(self._trace[-1])
+            if super_verbose:
+                print(self._trace[-1])
         while current_n_subtrees < n_clusters: # while we don't have enough regions
             best_deletion = self.find_cut(MSF, data, quorum=quorum, 
                                           labels=None, target_label=None, verbose=verbose)
